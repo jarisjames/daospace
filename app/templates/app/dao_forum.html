@@ -1,0 +1,84 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ dao.name }} - Forum</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+</head>
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper"> <!-- Ensure this is consistent -->
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">A</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <!-- Centered Box for Forum Topics -->
+        <div class="centered-box">
+            <h2>{{ dao.name }} - Forum Topics</h2>
+            <ul class="forum-topics-list">
+                {% for link in forum_links %}
+                <li>
+                    <strong>ID:</strong> {{ link.id }}<br>
+                    <strong>Title:</strong> <a href="{% url 'forum_topic_detail' link_id=link.id %}">{{ link.title }}</a><br>
+                    <strong>Link:</strong> <a href="{{ link.link }}" target="_blank">{{ link.link }}</a><br>
+                    <strong>Views:</strong> {{ link.views }}<br>
+                    <strong>Replies:</strong> {{ link.replies }}<br>
+                    <strong>Last Activity Date:</strong> {{ link.LastActivityDate }}<br>
+                    Original Poster: <a href="{% url 'member_detail' link.name link.OriginalPoster %}">{{ link.OriginalPoster }}</a><br>
+                    <strong>Category:</strong> {{ link.Category }}<br>
+                    <strong>Created:</strong> {{ link.Created }}
+                </li>
+                {% empty %}
+                <li>No forum topics found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="{% url 'home' %}" class="nav-item nav-home {% if active_page == 'home' %}active{% endif %}">Home</a>
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-job-board {% if active_page == 'job_board' %}active{% endif %}">Job Board</a>
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="#" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+            
+    </nav>
+</body>
+</html>

@@ -1,0 +1,344 @@
+/* Define the Orbitron font */
+@font-face {
+    font-family: 'Orbitron';
+    src: url("/static/fonts/Orbitron/Orbitron-Black.2e6f175c43c7.ttf") format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+/* Define the Fantasma font */
+@font-face {
+    font-family: 'Fantasma';
+    src: url("/static/fonts/Fantasma/Fantasma-Regular.f692d48238b2.ttf") format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    background-color: black; /* Changed from white to black */
+    margin: 0;
+    font-family: 'Orbitron'; /* Use Orbitron font for body */
+    color: white; /* Text color set to white for visibility */
+    padding-top: 70px; /* Add space for the fixed search bar */
+    background-image: url("/static/Images/Background/VR HUD.e54f126a7340.svg");
+    background-size: cover; /* Cover the entire viewport */
+    background-repeat: no-repeat; /* Prevent repeating */
+    background-position: center; /* Center the background image */
+    background-attachment: fixed; /* Make sure the background is fixed */
+}
+
+/* Apply Orbitron font to headings only */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron'; /* Use Orbitron font for headings */
+}
+
+/* Apply the Fantasma font to ForumPosts content and ForumTopics content */
+ul.forum-posts-list li,
+ul.forum-topics-list li {
+    font-family: 'Fantasma'; /* Use the Fantasma font */
+    font-size: 22px !important; /* Increase font size with higher specificity */
+    line-height: 1.5; /* Adjust line height for better readability */
+}
+
+
+
+
+
+
+/* Wrapper to control the full content */
+.content-wrapper {
+    width: 100%; /* Full width */
+    overflow-y: auto; /* Vertical scrollbar for the entire content */
+    display: flex;
+    justify-content: center; /* Center content horizontally */
+    align-items: flex-start; /* Align content to the top */
+}
+
+/* Centered Box for DAOs List, Members List, Forum Topics List and Forum Posts  */
+.centered-box {
+    width: 80%; /* Adjust width as necessary */
+    max-width: 800px; /* Optional max-width for better layout control */
+    max-height: 400px; /* Adjust height as necessary */
+    background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background for better visibility */
+    padding: 20px; /* Add padding inside the box */
+    border-radius: 10px; /* Rounded corners for the box */
+    margin-top: 20px; /* Space above the box */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Add shadow for better visual effect */
+    display: flex;
+    flex-direction: column;
+}
+
+/* List Styles for DAOs, Forum Topics, Members, Forum Posts */
+ul.dao-list, ul.forum-topics-list, ul.members-list, ul.forum-posts-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    width: 100%; /* Full width within the centered box */
+}
+
+ul.dao-list li, ul.forum-topics-list li, ul.members-list li, ul.forum-posts-list li {
+    margin: 10px 0; /* Add margin between list items */
+    text-align: left; /* Left-align text for better readability */
+    font-size: 16px; /* Adjust font size */
+    color: #f1f1f1; /* Text color */
+    padding: 5px; /* Padding around text */
+    background-color: rgba(255, 255, 255, 0.1); /* Slightly transparent background for list items */
+    border-radius: 5px; /* Rounded corners for list items */
+    transition: background-color 0.3s ease; /* Smooth transition on hover */
+}
+
+ul.dao-list li a, ul.forum-topics-list li a, ul.members-list li a, ul.forum-posts-list li a {
+    color: #FF3F1D; /* Link color */
+    text-decoration: none; /* Remove underline from links */
+}
+
+ul.dao-list li:hover, ul.forum-topics-list li:hover, ul.members-list li:hover, ul.forum-posts-list li:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Darker background on hover */
+}
+
+/* Forum Posts specific styles */
+ul.forum-posts-list li {
+    margin: 20px 0; /* Margin between posts */
+    padding: 10px; /* Padding around text */
+    border-left: 3px solid #00aaff; /* Left border for better visual separation */
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.2); /* Slight glowing effect */
+}
+
+/* Search Container Styles */
+.search-container {
+    position: fixed; /* Fix the search bar at the top */
+    top: 0; /* Align to the top of the viewport */
+    left: 0; /* Align to the left of the viewport */
+    width: 100%; /* Stretch across the full viewport width */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Center the items vertically */
+    padding: 10px 0; /* Adjust padding for better spacing */
+    background-color: black; /* Match the body background */
+    z-index: 101; /* Ensure it's above other content, higher than .bottom-nav */
+}
+
+/* Search Container Styles */
+.search-container {
+    position: fixed; /* Fix the search bar at the top */
+    top: 20px; /* Adjust top to align with the background */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Center horizontally */
+    width: auto; /* Auto width to fit content */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Center the items vertically */
+    padding: 10px; /* Adjust padding for better spacing */
+    background-color: black; /* Match the body background */
+    z-index: 101; /* Ensure it's above other content, higher than .bottom-nav */
+}
+
+/* Search Bar Styles */
+.search-bar {
+    width: 400px; /* Set a fixed width */
+    height: 40px; /* Adjust height to fit the SVG design */
+    padding: 0 15px; /* Adjust padding to fit your design */
+    font-size: 16px;
+    border: none; /* Remove the default border */
+    border-radius: 25px; /* Rounded corners for the search bar */
+    outline: none;
+    background-image: url("/static/Images/Buttons/SearchBar.bc3fabf02e25.svg");
+    background-size: 100% 100%; /* Stretch the background image to cover the entire input field */
+    background-repeat: no-repeat; /* Prevent repeating */
+    background-position: center; /* Center the background image */
+    color: white; /* Ensure text color contrasts with background */
+    text-align: center; /* Center the placeholder text */
+    box-sizing: border-box; /* Ensure padding is included in the height calculation */
+    background-color: transparent; /* Ensure no background color overrides the SVG */
+}
+
+/* Search Button Styles */
+.search-button {
+    height: 40px; /* Match the height of the search bar */
+    padding: 0 20px; /* Add padding for better click area */
+    border: none; /* Remove the default border */
+    border-radius: 0 25px 25px 0; /* Rounded corners for the right side */
+    background-color: #333; /* Background color for the button */
+    color: white; /* Text color for the button */
+    font-size: 16px; /* Font size for the button text */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    display: flex; /* Flex display for centering */
+    align-items: center; /* Center items vertically */
+    justify-content: center; /* Center items horizontally */
+    outline: none;
+}
+
+.search-button:hover {
+    background-color: #555; /* Slightly darker on hover */
+}
+
+/* Advanced Search Button Styles */
+.advanced-search-button {
+    height: 40px; /* Match the height of the search bar */
+    padding: 0 10px; /* Adjust padding for the button */
+    margin-left: 10px; /* Space between the search button and the advanced button */
+    border: none; /* Remove the default border */
+    border-radius: 25px; /* Rounded corners for the advanced search button */
+    background-color: #555; /* Background color for the button */
+    color: white; /* Text color for the button */
+    font-size: 16px; /* Font size for the button text */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    display: flex; /* Flex display for centering */
+    align-items: center; /* Center items vertically */
+    justify-content: center; /* Center items horizontally */
+    outline: none;
+}
+
+.advanced-search-button:hover {
+    background-color: #777; /* Slightly darker on hover */
+}
+
+/* Advanced Search Container Styles */
+.advanced-search-container {
+    display: none; /* Hide by default */
+    flex-direction: column; /* Arrange items in a column */
+    align-items: center; /* Center the items */
+    padding: 10px;
+    background-color: #222; /* Dark background for contrast */
+    border-radius: 10px; /* Rounded corners */
+    margin-top: 10px; /* Space above the advanced search container */
+    width: 100%;
+    box-sizing: border-box; /* Include padding and border in the width */
+}
+
+.advanced-search-container label {
+    margin: 5px 0; /* Space between labels and inputs */
+    color: white; /* Text color to match the theme */
+}
+
+.advanced-search-container select,
+.advanced-search-container input[type="date"] {
+    margin: 5px 0; /* Space between inputs */
+    padding: 5px;
+    border: 1px solid #333;
+    border-radius: 5px;
+    background-color: black; /* Match the body background */
+    color: white; /* Text color to match the theme */
+    outline: none;
+}
+
+
+/* Bottom Navigation Bar Styles */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 100px; /* Adjust height if necessary */
+    background-color: transparent; /* Keep background transparent */
+    color: white;
+    display: flex;
+    justify-content: space-between; /* Space items evenly */
+    align-items: flex-end; /* Align items to the bottom */
+    padding: 0 20px; /* Add padding for spacing */
+    box-sizing: border-box; /* Ensure padding is included in the width calculation */
+    z-index: 100; /* Ensure nav bar is above other content */
+    pointer-events: none; /* Allow clicks to pass through to the nav items */
+}
+
+.nav-item {
+    width: 150px; /* Set a fixed width for the buttons */
+    height: 50px; /* Set a fixed height for the buttons */
+    text-decoration: none;
+    color: white;
+    font-size: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-image: url("/static/Images/Buttons/SecondaryButton.1ece64ccb75b.svg");
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    border: none; /* Remove default border */
+    outline: none;
+    cursor: pointer; /* Change cursor to pointer on hover */
+    box-sizing: border-box; /* Ensure padding is included in the height calculation */
+    pointer-events: auto; /* Enable pointer events on nav items */
+    position: absolute; /* Use absolute positioning */
+}
+
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Slight color change on hover */
+}
+
+.nav-item.active, .nav-item:active {
+    background-color: rgba(255, 255, 255, 0.2); /* Different background for active/highlighted item */
+    color: #fff; /* Adjust text color if needed */
+}
+
+/* Specific Positioning for Each Nav Item */
+.nav-home {
+    left: 10%; /* Adjust percentage as needed */
+    bottom: 30%; /* Adjust bottom percentage for height */
+}
+
+.nav-marketplace {
+    right: 10%; /* Adjust percentage as needed */
+    bottom: 30%; /* Adjust bottom percentage for height */
+}
+
+.nav-daos {
+    left: 20%; /* Adjust percentage as needed */
+    bottom: 20%; /* Adjust bottom percentage for height */
+}
+
+.nav-events {
+    right: 20%; /* Adjust percentage as needed */
+    bottom: 20%; /* Adjust bottom percentage for height */
+}
+
+.nav-trending {
+    left: 30%; /* Adjust percentage as needed */
+    bottom: 10%; /* Adjust bottom percentage for height */
+}
+
+.nav-job-board {
+    right: 30%; /* Adjust percentage as needed */
+    bottom: 10%; /* Adjust bottom percentage for height */
+}
+
+/* Main content styles to prevent overlap with the bottom navigation bar */
+.main-content {
+    padding-bottom: 150px; /* Ensure sufficient space for the nav bar */
+}
+
+/* MetaMask Login Button Styles */
+.metamask-login {
+    margin-top: 20px; /* Adds space above the MetaMask login button */
+    text-align: center; /* Centers the button in the div */
+    padding-bottom: 20px; /* Adds space below the button */
+}
+
+/* Adjusts the button styling to fit the dark theme */
+#loginButton {
+    padding: 10px 20px;
+    font-size: 16px;
+    color: white;
+    background-color: #666; /* Dark grey background */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer; /* Makes the mouse cursor a pointer when hovered over the button */
+}
+
+#loginButton:hover {
+    background-color: #555; /* Slightly darker on hover for better interaction feedback */
+}
+
+/* Logo Styles */
+.logo-container {
+    position: fixed;
+    top: 10px; /* Adjust the distance from the top */
+    left: 10px; /* Adjust the distance from the left */
+    width: 100px; /* Set the width of the logo */
+    z-index: 102; /* Ensure it is above other content */
+}
+
+.logo-container img {
+    width: 100%; /* Ensure the image takes the full width of the container */
+    height: auto; /* Maintain aspect ratio */
+}
+

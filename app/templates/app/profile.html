@@ -1,0 +1,185 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Page</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+</head>
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper">
+        
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">A</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+        
+        <!-- Centered Box for Profile Details -->
+        <div class="centered-box">
+            <h2>Profile Page</h2>
+            <p>Ethereum Address: {{ account }}</p>
+
+            <!-- Form to generate verification code -->
+            <h2>Generate Verification Code</h2>
+            <form id="generateCodeForm" method="post" action="">
+                {% csrf_token %}
+                <label for="forumUsername">Forum Username:</label>
+                <input type="text" id="forumUsername" name="forumUsername" required>
+
+                <label for="daoName">Select DAO:</label>
+                <select id="daoName" name="daoName" required>
+                    {% for dao in daos %}
+                    <option value="{{ dao.name }}">{{ dao.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Generate Verification Code</button>
+            </form>
+
+            <!-- Placeholder for the unique code -->
+            <div id="uniqueCodeContainer" style="display: none;">
+                <h3>Unique Code</h3>
+                <p>Please add the following code to your forum bio:</p>
+                <code id="uniqueCode"></code>
+
+                <!-- Button to link forum data -->
+                <button id="linkForumButton" style="display: none;">Link Forum Data</button>
+            </div>
+
+            <!-- Display linked forum data -->
+            <div>
+                <h3>Forum Posts</h3>
+                <ul class="forum-posts-list">
+                    {% for post in forum_posts %}
+                    <li>
+                        <strong>
+                            {% if post.link_id %}
+                                <a href="{% url 'forum_topic_detail' link_id=post.link_id %}">{{ post.title }}</a>
+                            {% else %}
+                                {{ post.title }}
+                            {% endif %}
+                        </strong><br>
+                        Posted on: {{ post.post_time }}<br>
+                        Content: {{ post.content }}<br>
+                        <!-- Likes and Replies display -->
+                        <span>
+                            <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                        </span>
+                        <span style="margin-left: 10px;">
+                            <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                        </span>
+                        <div id="likers-{{ post.PostID }}" style="display:none;">
+                            {% if post.likes_list %}
+                                <strong>Likers:</strong>
+                                {% for liker in post.likes_list %}
+                                <a href="{% url 'member_detail' post.dao_name liker %}">{{ liker }}</a>{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                No likes yet.
+                            {% endif %}
+                        </div>
+                        <div id="replies-{{ post.PostID }}" style="display:none;">
+                            {% if post.replies_list %}
+                                <strong>Replies:</strong>
+                                <ul>
+                                    {% for reply in post.replies_list %}
+                                        <li><a href="{% url 'member_detail' post.dao_name reply.0 %}">{{ reply.0 }}</a>: {{ reply.1 }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                No replies yet.
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% empty %}
+                    <li>No linked forum posts found.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div>
+                <h3>Forum Links</h3>
+                <ul class="forum-posts-list">
+                    {% for link in forum_links %}
+                    <li>
+                        {% if link.id %}
+                            <a href="{% url 'forum_topic_detail' link_id=link.id %}">{{ link.title }}</a>
+                        {% else %}
+                            {{ link.title }}
+                        {% endif %}
+                    </li>
+                    {% empty %}
+                    <li>No linked forum links found.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="{% url 'home' %}" class="nav-item nav-home {% if active_page == 'home' %}active{% endif %}">Home</a>
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-job-board {% if active_page == 'job_board' %}active{% endif %}">Job Board</a>
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="#" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+         
+    <script>
+        const account = "{{ account }}"; // Pass the account variable to JavaScript
+
+        function toggleLikers(id) {
+            const x = document.getElementById(id);
+            if (x.style.display === "none") {
+                x.style.display = "block";
+            } else {
+                x.style.display = "none";
+            }
+        }
+
+        function toggleReplies(id) {
+            const x = document.getElementById(id);
+            if (x.style.display === "none") {
+                x.style.display = "block";
+            } else {
+                x.style.display = "none";
+            }
+        }
+    </script>
+    <script src="{% static 'js/profile.js' %}"></script>
+</body>
+</html>

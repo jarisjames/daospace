@@ -1,0 +1,301 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>daospace - Search Results</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <script>
+        function toggleAdvancedSearch() {
+            const advancedSearch = document.getElementById('advancedSearch');
+            if (advancedSearch.style.display === 'none' || advancedSearch.style.display === '') {
+                advancedSearch.style.display = 'flex';
+            } else {
+                advancedSearch.style.display = 'none';
+            }
+        }
+
+        function toggleResults(type) {
+            const topicsSection = document.getElementById('topicsSection');
+            const postsSection = document.getElementById('postsSection');
+            const topicsButton = document.getElementById('topicsButton');
+            const postsButton = document.getElementById('postsButton');
+            
+            if (type === 'topics') {
+                topicsSection.style.display = 'block';
+                postsSection.style.display = 'none';
+                topicsButton.classList.add('active');
+                postsButton.classList.remove('active');
+            } else if (type === 'posts') {
+                topicsSection.style.display = 'none';
+                postsSection.style.display = 'block';
+                topicsButton.classList.remove('active');
+                postsButton.classList.add('active');
+            }
+            // Update the URL to reflect the current view
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('view', type);
+            window.history.replaceState(null, null, "?" + urlParams.toString());
+        }
+
+        function toggleSort(sortType) {
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('sort', sortType);
+            window.location.search = urlParams.toString(); // Reload the page with the new sort parameter
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const view = urlParams.get('view') || 'topics'; // Default to 'topics'
+            const sort = urlParams.get('sort') || 'latest'; // Default to 'latest'
+            toggleResults(view);
+            if (sort === 'top') {
+                document.getElementById('topButton').classList.add('active');
+                document.getElementById('latestButton').classList.remove('active');
+            } else {
+                document.getElementById('latestButton').classList.add('active');
+                document.getElementById('topButton').classList.remove('active');
+            }
+        });
+        
+    </script>
+    <style>
+        /* Ensure no horizontal overflow */
+        body, .content-wrapper {
+            overflow-x: hidden;
+        }
+
+        /* Ensure all elements fit within their container */
+        .content-wrapper, .centered-box {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Prevent horizontal overflow in the list */
+        .forum-topics-list {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .toggle-button {
+            cursor: pointer;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border: 1px solid #ccc;
+            background-color: #000; /* Black background */
+            color: #fff; /* White text */
+        }
+
+        .toggle-button.active {
+            background-color: #444; /* Darker black for active state */
+            font-weight: bold;
+        }
+
+        .toggle-buttons-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper">
+
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">A</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <div class="centered-box">
+            <!-- Toggle Buttons for Topics and Posts -->
+            <div class="toggle-buttons-container">
+                <span id="topicsButton" class="toggle-button" onclick="toggleResults('topics')">Topics</span>
+                <span id="postsButton" class="toggle-button" onclick="toggleResults('posts')">Posts</span>
+            </div>
+
+            <!-- Sub Toggle Buttons for Top and Latest -->
+            <div class="toggle-buttons-container">
+                <span id="topButton" class="toggle-button" onclick="toggleSort('top')">Top</span>
+                <span id="latestButton" class="toggle-button" onclick="toggleSort('latest')">Latest</span>
+            </div>
+
+            <!-- Display ForumLinks search results -->
+            {% if page_obj_link %}
+            <div id="topicsSection" class="section">
+                <h2>Topics</h2>
+                <ul class="forum-topics-list">
+                    {% for link in page_obj_link %}
+                    <li>
+                        DAO: <a href="{% url 'dao_detail' link.name %}">{{ link.name }}</a>,
+                        Original Poster: <a href="{% url 'member_detail' link.name link.OriginalPoster %}">{{ link.OriginalPoster }}</a>,
+                        <strong><a href="{% url 'forum_topic_detail' link_id=link.id %}">{{ link.title }}</a><br></strong> - 
+                        <a href="{{ link.link }}">Discussion Link</a> - 
+                        Views: {{ link.views }}, Replies: {{ link.replies }},
+                        Last Activity: {{ link.LastActivityDate }},
+                        Created on: {{ link.Created }},
+                    </li>
+                    {% empty %}
+                    <li>No forum links found.</li>
+                    {% endfor %}
+                </ul>
+                <div class="pagination">
+                    <span class="step-links">
+                        {% if page_obj_link.has_previous %}
+                            <a href="?page_link=1&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">&laquo; first</a>
+                            <a href="?page_link={{ page_obj_link.previous_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">previous</a>
+                        {% endif %}
+
+                        <span class="current">
+                            Page {{ page_obj_link.number }} of {{ page_obj_link.paginator.num_pages }}.
+                        </span>
+
+                        {% if page_obj_link.has_next %}
+                            <a href="?page_link={{ page_obj_link.next_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">next</a>
+                            <a href="?page_link={{ page_obj_link.paginator.num_pages }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">last &raquo;</a>
+                        {% endif %}
+                    </span>
+                    <span class="total-results">
+                        {{ total_link_results }} results
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Display ForumPosts search results -->
+            {% if page_obj_post %}
+            <div id="postsSection" class="section">
+                <h2>Posts</h2>
+                <ul class="forum-topics-list">
+                    {% for post in page_obj_post %}
+                    <li>
+                        <strong>
+                            {% if post.link_id %}
+                                <a href="{% url 'forum_topic_detail' link_id=post.link_id %}">{{ post.title }}</a>
+                            {% else %}
+                                {{ post.title }}
+                            {% endif %}
+                        </strong> by <a href="{% url 'member_detail' post.dao_name post.author %}">{{ post.author }}</a> - {{ post.Role }}, <br>
+                        DAO: <a href="{% url 'dao_detail' post.dao_name %}">{{ post.dao_name }}</a>, <!-- Display DAO name here -->
+                        Posted on: {{ post.post_time }}<br>
+                        Content: {{ post.content }}<br>
+                        <!-- Likes and Replies display -->
+                        <span>
+                            <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                        </span>
+                        <span style="margin-left: 10px;">
+                            <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                        </span>
+                        <div id="likers-{{ post.PostID }}" style="display:none;">
+                            {% if post.likes_list %}
+                                <strong>Likers:</strong>
+                                {% for liker in post.likes_list %}
+                                <a href="{% url 'member_detail' post.dao_name liker %}">{{ liker }}</a>{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                No likes yet.
+                            {% endif %}
+                        </div>
+                        <div id="replies-{{ post.PostID }}" style="display:none;">
+                            {% if post.replies_list %}
+                                <strong>Replies:</strong>
+                                <ul>
+                                    {% for reply in post.replies_list %}
+                                        <li><a href="{% url 'member_detail' post.dao_name reply.0 %}">{{ reply.0 }}</a>: {{ reply.1 }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                No replies yet.
+                            {% endif %}
+                        </div>
+                        <!-- Emoji Reactions display for ENS DAO posts -->
+                        {% if post.dao_name == "ENS" %}
+                        <div class="emoji-reactions">
+                            {% for emoji, users in post.emoji_reactions_display.items %}
+                                <span title="{{ users|join:', ' }}">{{ emoji }} ({{ users|length }})</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% empty %}
+                    <li>No forum posts found.</li>
+                    {% endfor %}
+                </ul>
+                <div class="pagination">
+                    <span class="step-links">
+                        {% if page_obj_post.has_previous %}
+                            <a href="?page_post=1&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">&laquo; first</a>
+                            <a href="?page_post={{ page_obj_post.previous_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">previous</a>
+                        {% endif %}
+
+                        <span class="current">
+                            Page {{ page_obj_post.number }} of {{ page_obj_post.paginator.num_pages }}.
+                        </span>
+
+                        {% if page_obj_post.has_next %}
+                            <a href="?page_post={{ page_obj_post.next_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">next</a>
+                            <a href="?page_post={{ page_obj_post.paginator.num_pages }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">last &raquo;</a>
+                        {% endif %}
+                    </span>
+                    <span class="total-results">
+                        {{ total_post_results }} results
+                    </span>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Marker for appending new content -->
+            <div id="content-end"></div>
+
+            <!-- Optional: Loading Indicator -->
+            <div id="loading" style="display: none;">
+                Loading more results...
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="{% url 'home' %}" class="nav-item nav-home {% if active_page == 'home' %}active{% endif %}">Home</a>
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-job-board {% if active_page == 'job_board' %}active{% endif %}">Job Board</a>
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="#" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+</body>
+</html>
