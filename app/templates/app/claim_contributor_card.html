@@ -1,0 +1,503 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <!-- Meta and title -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>daospace - Contributor Card Customization</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/home.css' %}">
+
+    <!-- Load Three.js and related libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Include RGBELoader for HDRI loading -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+    <!-- Include PMREMGenerator -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/pmrem/PMREMGenerator.js"></script>
+    <!-- Include GLTFExporter -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <style>
+        #3d-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        /* Define a common class for control buttons */
+        .control-button {
+            /* Remove fixed width to allow dynamic sizing */
+            /* width: 60px; */ /* Commented out */
+            
+            /* Alternatively, set a minimum width to maintain consistency */
+            min-width: 100px; /* Adjust as needed */
+            
+            height: 40px;
+            border-radius: 5px;
+            margin-right: 10px;
+            font-size: 14px;
+            padding: 0 10px; /* Added horizontal padding */
+            text-align: center;
+            /* Remove text overflow properties to allow text wrapping or full display */
+            overflow: visible;
+            white-space: normal;
+            text-overflow: clip;
+            cursor: pointer; /* Add pointer cursor for better UX */
+            
+            /* Optional: Add background and border for better visibility */
+            background-color: #007BFF; /* Bootstrap primary color */
+            color: #fff;
+            border: none;
+        }
+        
+        /* Optional: Style the "Choose File" input to match buttons */
+        .control-button-file {
+            /* Reset default styling */
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-color: #007BFF;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        /* Ensure input[type=range] aligns properly */
+        #rotationSlider {
+            width: 200px;
+            margin-right: 10px;
+            /* Optional: Add some styling to match buttons */
+        }
+        
+
+        #imageUpload {
+            margin-right: 10px;
+        }
+
+        /* Styles for the rotation slider */
+        #rotationSlider {
+            width: 200px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+
+
+    
+
+    <div class="content-wrapper">
+        <!-- Centered Box for 3D Model -->
+        <div class="centered-box">
+            <div id="3d-container" style="width: 100%; height: 600px;"></div>
+            <div class="controls">
+                <!-- Controls -->
+                <button id="flip-card">Flip Card</button>
+                <input type="file" id="imageUpload" accept="image/*">
+                <!-- Rotation slider -->
+                <input type="range" id="rotationSlider" min="0" max="360" value="0">
+                <button id="download-model">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+       
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const scene = new THREE.Scene();
+            const container = document.getElementById('3d-container');
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.outputEncoding = THREE.sRGBEncoding; // Ensure proper color encoding
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            let model;
+            let modelContainer = new THREE.Object3D();
+            scene.add(modelContainer);
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            let customImageTexture;
+            let customTextures = [];
+
+            // Initialize PMREMGenerator
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+
+            // Load the HDRI environment map
+            const rgbeLoader = new THREE.RGBELoader();
+            rgbeLoader.setDataType(THREE.UnsignedByteType); // For proper gamma correction
+            rgbeLoader.load("{% static 'textures/neon_photostudio_4k.hdr' %}", function (texture) {
+                const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+                scene.environment = envMap;
+                texture.dispose();
+                pmremGenerator.dispose();
+
+                // Now load the GLB model after the environment is set
+                loadModel();
+            });
+
+            // Get the GLB file path from the template variable
+            const glbFilePath = "{% static glb_file %}";
+
+            function loadModel() {
+                // Load the GLB model
+                const loader = new THREE.GLTFLoader();
+                loader.load(glbFilePath, function (gltf) {
+                    model = gltf.scene;
+                    console.log('Model loaded:', model);
+
+                    // Center the model
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+
+                    // Scale the model to fit the view
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 1 / maxDim;
+                    model.scale.setScalar(scale * 1.7);
+
+                    modelContainer.add(model);
+
+                    // Adjust initial rotation to face the front side
+                    modelContainer.rotation.y += -Math.PI / 2; // Rotate by -90 degrees
+
+                    // Position camera slightly farther from the model
+                    camera.position.set(0, 0, 1.0);
+                    camera.lookAt(modelContainer.position);
+
+                    // Traverse the model to adjust materials
+                    model.traverse((child) => {
+                        if (child.isMesh) {
+                            console.log('Mesh name:', child.name);
+                    
+                            // Ensure textures have correct encoding
+                            if (child.material.map) {
+                                child.material.map.encoding = THREE.sRGBEncoding;
+                            }
+                    
+                            // Specific adjustments for Plane, Plane003, Text0, Text008
+                            if (['Plane', 'Plane', 'Plane003', 'Text0', 'Text008'].includes(child.name)) {
+                                child.material.color.set(0xffffff); // Ensure material is white
+                                child.material.metalness = 0; // No reflectivity
+                                child.material.roughness = 1; // Matte finish
+                                child.material.transparent = false; // Ensure no transparency
+                                child.material.opacity = 1; // Full opacity
+                                child.material.side = THREE.DoubleSide; // Render both sides
+                                child.material.needsUpdate = true;
+                            }
+                    
+                            // Adjust material properties for other meshes (excluding Plane001)
+                            if (child.name !== 'Plane001') {
+                                child.material.roughness = 0.2; // Lower roughness for glossiness
+                                child.material.metalness = 0.5; // Increase metalness for reflectivity
+                                child.material.envMapIntensity = 1.0; // Adjust as needed
+                                child.material.needsUpdate = true;
+                            }
+                    
+                            // Handle Plane001 separately (Custom Image Mesh)
+                            if (child.name === 'Plane001') {
+                                // Store reference for later use
+                                window.plane001Mesh = child;
+                    
+                                // Set initial material to black MeshBasicMaterial
+                                window.plane001Mesh.material = new THREE.MeshBasicMaterial({
+                                    color: 0x000000, // Set initial color to black
+                                    side: THREE.DoubleSide
+                                });
+                                window.plane001Mesh.material.needsUpdate = true;
+                            }
+                        }
+                    });
+
+                    centerModel();
+                    animate();
+                }, undefined, function (error) {
+                    console.error('An error happened while loading the model:', error);
+                });
+            }
+
+            function centerModel() {
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                model.position.sub(center);
+                modelContainer.position.copy(new THREE.Vector3(0, 0, -size.z / 2));
+            }
+
+            // Custom rotation handler
+            container.addEventListener('mousedown', onMouseDown, false);
+            container.addEventListener('mousemove', onMouseMove, false);
+            container.addEventListener('mouseup', onMouseUp, false);
+
+            function onMouseDown(event) {
+                isDragging = true;
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+
+            function onMouseMove(event) {
+                if (!isDragging || !modelContainer) return;
+
+                const deltaMove = {
+                    x: event.clientX - previousMousePosition.x,
+                    y: event.clientY - previousMousePosition.y
+                };
+
+                const rotationSpeed = 0.005;
+
+                // Rotate around world Y axis
+                modelContainer.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -deltaMove.x * rotationSpeed);
+
+                // Rotate around world X axis
+                modelContainer.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), -deltaMove.y * rotationSpeed);
+
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+
+                // Update the slider value based on rotation
+                updateSliderFromRotation();
+            }
+
+            function onMouseUp(event) {
+                isDragging = false;
+            }
+
+            // Add flip button functionality
+            const flipButton = document.getElementById('flip-card');
+            flipButton.addEventListener('click', function () {
+                gsap.to(modelContainer.rotation, {
+                    y: modelContainer.rotation.y + Math.PI,
+                    duration: 0.5,
+                    onUpdate: updateSliderFromRotation
+                });
+            });
+
+            // Image upload functionality
+            let uvRotated = false;
+
+            document.getElementById('imageUpload').addEventListener('change', function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+            
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    const textureLoader = new THREE.TextureLoader();
+                    textureLoader.load(
+                        event.target.result,
+                        function (texture) {
+                            // Set texture properties
+                            texture.encoding = THREE.sRGBEncoding;
+                            texture.flipY = false; // Prevent vertical flipping
+                            texture.name = 'customImageTexture';
+            
+                            // Ensure the mesh exists
+                            if (!window.plane001Mesh) {
+                                console.error('Plane001 mesh not found');
+                                return;
+                            }
+            
+                            // Apply the texture to the mesh material
+                            window.plane001Mesh.material = new THREE.MeshStandardMaterial({
+                                map: texture,
+                                side: THREE.DoubleSide
+                            });
+                            window.plane001Mesh.material.needsUpdate = true;
+            
+                            customImageTexture = texture;
+                            customTextures.push(customImageTexture);
+            
+                            // Rotate UVs only once
+                            if (!uvRotated) {
+                                const uvAttribute = window.plane001Mesh.geometry.getAttribute('uv');
+                                for (let i = 0; i < uvAttribute.count; i++) {
+                                    const u = uvAttribute.getX(i);
+                                    const v = uvAttribute.getY(i);
+                                    const newU = 1 - v;
+                                    const newV = u;
+                                    uvAttribute.setXY(i, newU, newV);
+                                }
+                                uvAttribute.needsUpdate = true;
+                                uvRotated = true; // Prevent future rotations
+                            }
+            
+                            // Render the scene with the updated texture
+                            renderer.render(scene, camera);
+                        },
+                        undefined,
+                        function (error) {
+                            console.error('Error loading texture:', error);
+                        }
+                    );
+                };
+                reader.readAsDataURL(file);
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+
+            // Handle window resizing
+            window.addEventListener('resize', function () {
+                const aspect = container.clientWidth / container.clientHeight;
+                camera.aspect = aspect;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+            });
+
+            // Add rotation slider functionality
+            const rotationSlider = document.getElementById('rotationSlider');
+            rotationSlider.addEventListener('input', function () {
+                const angle = THREE.MathUtils.degToRad(this.value);
+                modelContainer.rotation.y = angle - Math.PI / 2; // Adjust for initial -90-degree rotation
+            });
+
+            // Function to update slider value based on model rotation
+            function updateSliderFromRotation() {
+                const angle = modelContainer.rotation.y + Math.PI / 2; // Adjust for initial rotation
+                const degrees = (THREE.MathUtils.radToDeg(angle) + 360) % 360;
+                rotationSlider.value = degrees.toFixed(1);
+            }
+
+            // Add download functionality
+            const downloadButton = document.getElementById('download-model');
+            downloadButton.addEventListener('click', function () {
+                // Clone the model
+                const clonedModel = model.clone(true);
+
+                // Apply transformations from modelContainer to clonedModel
+                clonedModel.applyMatrix4(modelContainer.matrixWorld);
+
+                // Remove cameras and lights from the cloned model
+                const nodesToRemove = [];
+                clonedModel.traverse((node) => {
+                    if (node.isCamera || node.isLight) {
+                        nodesToRemove.push(node);
+                    }
+                });
+                nodesToRemove.forEach((node) => {
+                    if (node.parent) {
+                        node.parent.remove(node);
+                    }
+                });
+
+                // Collect meshes for exporting
+                const meshes = [];
+
+                clonedModel.traverse((node) => {
+                    if (node.isMesh) {
+                        // Clone the mesh to avoid modifying the original
+                        const mesh = node.clone();
+                        mesh.material = node.material; // Use the same material
+                        mesh.geometry = node.geometry.clone(); // Clone the geometry
+
+                        // Update world matrix
+                        node.updateMatrixWorld(true);
+
+                        // Apply the world matrix to geometry vertices
+                        mesh.geometry.applyMatrix4(node.matrixWorld);
+
+                        // Reset transformations
+                        mesh.position.set(0, 0, 0);
+                        mesh.rotation.set(0, 0, 0);
+                        mesh.scale.set(1, 1, 1);
+                        mesh.updateMatrixWorld(true);
+
+                        meshes.push(mesh);
+                    }
+                });
+
+                // Center the geometries
+                const bbox = new THREE.Box3().setFromObject(clonedModel);
+                const center = bbox.getCenter(new THREE.Vector3());
+
+                // Shift each geometry to center the model
+                meshes.forEach((mesh) => {
+                    mesh.geometry.translate(-center.x, -center.y, -center.z);
+                });
+
+                // Export the meshes directly
+                const exporter = new THREE.GLTFExporter();
+                const options = {
+                    binary: true,
+                    embedImages: true
+                };
+
+                exporter.parse(meshes, function (result) {
+                    if (result instanceof ArrayBuffer) {
+                        saveArrayBuffer(result, 'customized_model.glb');
+                    } else {
+                        const output = JSON.stringify(result, null, 2);
+                        saveString(output, 'customized_model.gltf');
+                    }
+                }, options);
+            });
+
+            function saveArrayBuffer(buffer, filename) {
+                const blob = new Blob([buffer], { type: 'application/octet-stream' });
+                saveBlob(blob, filename);
+            }
+
+            function saveString(text, filename) {
+                const blob = new Blob([text], { type: 'text/plain' });
+                saveBlob(blob, filename);
+            }
+
+            function saveBlob(blob, filename) {
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                document.body.appendChild(link);
+
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+
+                // Cleanup
+                URL.revokeObjectURL(link.href);
+                document.body.removeChild(link);
+            }
+        });
+    </script>
+
+    <!-- Include your custom JS file if needed -->
+    <!-- <script src="{% static 'js/home.js' %}"></script> -->
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+</body>
+</html>

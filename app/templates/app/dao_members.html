@@ -1,0 +1,105 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Members of {{ dao.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <style>
+        /* Make the metrics look like they do in daos.html */
+        .members-metrics {
+            font-size: 0.8em; /* Smaller font for metrics text */
+            color: #888888; /* Gray text */
+            margin-top: 4px;
+            line-height: 1.5;
+        }
+
+        /* Scale down text inside members-list items, similar to dao-item in daos.html */
+        .members-list li {
+            font-size: 0.8em; /* Smaller text globally inside each member item */
+            margin-bottom: 20px; /* If you want items closer, reduce this value */
+        }
+    </style>
+</head>
+<body>
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper">
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">Ξ</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <!-- Centered Box for Members List -->
+        <div class="centered-box">
+            <h2>{{ dao.name }} - Contributor Leaderboard</h2>
+            <ul class="members-list">
+                {% for entry in leaderboard %}
+                <li>
+                    <span>{{ forloop.counter }}.</span>
+                    <a href="{% url 'member_detail' dao.name entry.member %}"><strong>{{ entry.member }}</strong></a>
+                    {% if entry.role %}
+                        - ({{ entry.role }})
+                    {% endif %}
+
+                    <!-- Metrics displayed vertically, styled like dao-metrics -->
+                    <div class="members-metrics">
+                        <div>Total Topics: {{ entry.total_topics }}</div>
+                        <div>Views (Topics): {{ entry.total_views }}</div>
+                        <div>Total Posts: {{ entry.total_posts }}</div>
+                        <div>Total Likes (Received): {{ entry.total_likes }}</div>
+                        <div>Total Replies (Received): {{ entry.total_replies }}</div>
+                        <!-- Removed Total Score line -->
+                    </div>
+                </li>
+                {% empty %}
+                <li>No members found for this DAO.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <div class="nav-row">
+
+                <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+                <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+            </div>
+            <div class="nav-row">
+
+                <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+                <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+            </div>
+        </nav>
+    </div>
+
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+</body>
+</html>

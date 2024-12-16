@@ -1,0 +1,123 @@
+{% if current_view == 'topics' %}
+    {% if page_obj_link %}
+    <div id="topicsSection" class="section">
+        <h2>Topics</h2>
+        <ul class="forum-topics-list">
+            {% for link in page_obj_link %}
+            <li>
+                DAO: <a href="{% url 'dao_detail' link.name %}">{{ link.name }}</a>,
+                Original Poster: <a href="{% url 'member_detail' link.name link.OriginalPoster %}">{{ link.OriginalPoster }}</a>,
+                <strong><a href="{% url 'forum_topic_detail' link_id=link.id %}">{{ link.title }}</a><br></strong> - 
+                <a href="{{ link.link }}">Discussion Link</a> - 
+                Views: {{ link.views }}, Replies: {{ link.replies }},
+                Last Activity: {{ link.LastActivityDate }},
+                Created on: {{ link.Created }},
+            </li>
+            {% empty %}
+            <li>No forum links found.</li>
+            {% endfor %}
+        </ul>
+        <div class="pagination">
+            <span class="step-links">
+                {% if page_obj_link.has_previous %}
+                    <a href="?page_link=1&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">&laquo; first</a>
+                    <a href="?page_link={{ page_obj_link.previous_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">previous</a>
+                {% endif %}
+
+                <span class="current">
+                    Page {{ page_obj_link.number }} of {{ page_obj_link.paginator.num_pages }}.
+                </span>
+
+                {% if page_obj_link.has_next %}
+                    <a href="?page_link={{ page_obj_link.next_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">next</a>
+                    <a href="?page_link={{ page_obj_link.paginator.num_pages }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=topics&sort={{ current_sort }}">last &raquo;</a>
+                {% endif %}
+            </span>
+            <span class="total-results">
+                {{ total_link_results }} results
+            </span>
+        </div>
+    </div>
+    {% endif %}
+{% elif current_view == 'posts' %}
+    {% if page_obj_post %}
+    <div id="postsSection" class="section">
+        <h2>Posts</h2>
+        <ul class="forum-topics-list">
+            {% for post in page_obj_post %}
+            <li>
+                <strong>
+                    {% if post.link_id %}
+                        <a href="{% url 'forum_topic_detail' link_id=post.link_id %}">{{ post.title }}</a>
+                    {% else %}
+                        {{ post.title }}
+                    {% endif %}
+                </strong> by <a href="{% url 'member_detail' post.dao_name post.author %}">{{ post.author }}</a> - {{ post.Role }}, <br>
+                DAO: <a href="{% url 'dao_detail' post.dao_name %}">{{ post.dao_name }}</a>, <!-- Display DAO name here -->
+                Posted on: {{ post.post_time }}<br>
+                Content: {{ post.content }}<br>
+                <!-- Likes and Replies display -->
+                <span>
+                    <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                </span>
+                <span style="margin-left: 10px;">
+                    <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                </span>
+                <div id="likers-{{ post.PostID }}" style="display:none;">
+                    {% if post.likes_list %}
+                        <strong>Likers:</strong>
+                        {% for liker in post.likes_list %}
+                        <a href="{% url 'member_detail' post.dao_name liker %}">{{ liker }}</a>{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        No likes yet.
+                    {% endif %}
+                </div>
+                <div id="replies-{{ post.PostID }}" style="display:none;">
+                    {% if post.replies_list %}
+                        <strong>Replies:</strong>
+                        <ul>
+                            {% for reply in post.replies_list %}
+                                <li><a href="{% url 'member_detail' post.dao_name reply.0 %}">{{ reply.0 }}</a>: {{ reply.1 }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        No replies yet.
+                    {% endif %}
+                </div>
+                <!-- Emoji Reactions display for ENS DAO posts -->
+                {% if post.dao_name == "ENS" %}
+                <div class="emoji-reactions">
+                    {% for emoji, users in post.emoji_reactions_display.items %}
+                        <span title="{{ users|join:', ' }}">{{ emoji }} ({{ users|length }})</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </li>
+            {% empty %}
+            <li>No forum posts found.</li>
+            {% endfor %}
+        </ul>
+        <div class="pagination">
+            <span class="step-links">
+                {% if page_obj_post.has_previous %}
+                    <a href="?page_post=1&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">&laquo; first</a>
+                    <a href="?page_post={{ page_obj_post.previous_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">previous</a>
+                {% endif %}
+
+                <span class="current">
+                    Page {{ page_obj_post.number }} of {{ page_obj_post.paginator.num_pages }}.
+                </span>
+
+                {% if page_obj_post.has_next %}
+                    <a href="?page_post={{ page_obj_post.next_page_number }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">next</a>
+                    <a href="?page_post={{ page_obj_post.paginator.num_pages }}&q={{ request.GET.q }}&date_field={{ request.GET.date_field }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&view=posts&sort={{ current_sort }}">last &raquo;</a>
+                {% endif %}
+            </span>
+            <span class="total-results">
+                {{ total_post_results }} results
+            </span>
+        </div>
+    </div>
+    {% endif %}
+{% endif %}

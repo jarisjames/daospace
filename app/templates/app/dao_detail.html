@@ -1,0 +1,117 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <!-- Existing head elements -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ dao.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+</head>
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <!-- Add the dao-detail-page class here -->
+    <div class="content-wrapper dao-detail-page">
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">Ξ</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+    
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <!-- Centered Box for DAO Details -->
+        <div class="centered-box">
+            <h1 class="dao-name">{{ dao.name }}</h1>
+            <ul class="forum-posts-list">
+                <!-- DAO Category -->
+                <li>
+                    <div class="post-header">
+                        <div class="author-role">
+                            <strong>Category</strong>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        {{ dao.categories }}
+                    </div>
+                </li>
+                <!-- Members Section -->
+                <li>
+                    <div class="post-header">
+                        <div class="author-role">
+                            <strong>Members</strong>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p><a href="{% url 'dao_members' dao.name %}">List of members or member-related information</a></p>
+                    </div>
+                </li>
+                <!-- Forum Section -->
+                <li>
+                    <div class="post-header">
+                        <div class="author-role">
+                            <strong>Forum</strong>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p><a href="{% url 'dao_forum' dao.name %}">Visit Forum</a></p>
+                    </div>
+                </li>
+                <!-- Server Section -->
+                <li>
+                    <div class="post-header">
+                        <div class="author-role">
+                            <strong>Server</strong>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p>Information about the server, links to server, etc.</p>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+
+</body>
+</html>

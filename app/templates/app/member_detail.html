@@ -1,0 +1,181 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile of {{ member }} - {{ dao.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+</head>
+
+<style>
+    /* Ensure no horizontal overflow */
+    body, .content-wrapper {
+        overflow-x: hidden;
+    }
+
+    /* Ensure all elements fit within their container */
+    .content-wrapper, .centered-box {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Prevent horizontal overflow in the list */
+    .forum-posts-list {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Optional styling for pagination links */
+    .pagination {
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    .pagination a, .pagination strong {
+        margin: 0 5px;
+        text-decoration: none;
+        color: white;
+    }
+
+    .pagination strong {
+        font-weight: bold;
+        color: #00aaff; /* Highlight the current page number */
+    }
+</style>
+
+<body>
+
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper">
+        
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">Ξ</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <!-- Centered Box for Member Details -->
+        <div class="centered-box">
+            <h2>Profile of {{ member }} in {{ dao.name }}</h2>
+            <h2>Posts by {{ member }}</h2>
+            <ul class="forum-posts-list">
+                {% for post in page_obj %}
+                <li>
+                    <strong>
+                        {% if post.link_id %}
+                            <a href="{% url 'forum_topic_detail' link_id=post.link_id %}">{{ post.title }}</a>
+                        {% else %}
+                            {{ post.title }}
+                        {% endif %}
+                    </strong> by <a href="{% url 'member_detail' post.dao_name post.author %}">{{ post.author }}</a> - {{ post.Role }}<br>
+                    Posted on: {{ post.post_time }}<br>
+                    Content: {{ post.content }}<br>
+                    <!-- Likes and Replies display -->
+                    <span>
+                        <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                    </span>
+                    <span style="margin-left: 10px;">
+                        <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                    </span>
+                    <div id="likers-{{ post.PostID }}" style="display:none;">
+                        {% if post.likes_list %}
+                            <strong>Likers:</strong>
+                            {% for liker in post.likes_list %}
+                            <a href="{% url 'member_detail' post.dao_name liker %}">{{ liker }}</a>{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            No likes yet.
+                        {% endif %}
+                    </div>
+                    <div id="replies-{{ post.PostID }}" style="display:none;">
+                        {% if post.replies_list %}
+                            <strong>Replies:</strong>
+                            <ul>
+                                {% for reply in post.replies_list %}
+                                    <li><a href="{% url 'member_detail' post.dao_name reply.0 %}">{{ reply.0 }}</a>: {{ reply.1 }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            No replies yet.
+                        {% endif %}
+                    </div>
+                    <!-- Emoji Reactions display for ENS DAO posts -->
+                    {% if post.dao_name == "ENS" and post.emoji_reactions_display %}
+                    <div>
+                        <strong>Raw Emoji Reactions Data:</strong> {{ post.emoji_reactions }}
+                    </div>
+                    <div class="emoji-reactions">
+                        <strong>Emoji Reactions:</strong>
+                        {% for emoji, users in post.emoji_reactions_display.items %}
+                            <span title="{{ users|join:', ' }}">{{ emoji }} ({{ users|length }})</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            <!-- Pagination Controls -->
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <strong>{{ num }}</strong>
+                    {% else %}
+                        <a href="?page={{ num }}">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+  
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genesis Welcome</title>
+    <style>
+        .genesis-message {
+            text-align: center;
+            margin: 20px auto;
+            max-width: 600px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .genesis-message p {
+            margin: 10px 0;
+        }
+        #nextButton {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="genesisMessage" class="genesis-message"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const messages = [
+            "Welcome to daospace, where you'll stay updated on key developments across various DAOs.",
+            "I'm Genesis, but you can call me Gen—your personal AI assistant.",
+            "I'm here to help you cut through the noise and keep you up to date, not just on the DAOs you contribute to, but across the broader network.",
+            "I provide insights you'd typically only hear from key members in each community, I make sure you're always in the know.",
+            "Tell me a few things about yourself to get started, so I can tailor your updates to your skills and interests, giving you a customized dashboard experience while keeping you informed across all DAOs on the platform.",
+            "Click next to get started!"
+        ];
+        const messageContainer = document.getElementById('genesisMessage');
+        let typingSpeed = 50; // milliseconds per character
+
+        function displayFullMessage() {
+            messageContainer.innerHTML = '';
+            messages.forEach(sentence => {
+                let paragraph = document.createElement('p');
+                paragraph.textContent = sentence;
+                messageContainer.appendChild(paragraph);
+            });
+        }
+
+        function startTypingEffect() {
+            messageContainer.innerHTML = '';
+            let currentSentence = 0;
+            function typeSentence(sentence, callback) {
+                let index = 0;
+                let paragraph = document.createElement('p');
+                messageContainer.appendChild(paragraph);
+                function type() {
+                    if (index < sentence.length) {
+                        paragraph.innerHTML += sentence.charAt(index);
+                        index++;
+                        setTimeout(type, typingSpeed);
+                    } else {
+                        setTimeout(callback, 500);
+                    }
+                }
+                type();
+            }
+            function typeNextSentence() {
+                if (currentSentence < messages.length) {
+                    typeSentence(messages[currentSentence], function() {
+                        currentSentence++;
+                        typeNextSentence();
+                    });
+                }
+            }
+            typeNextSentence();
+        }
+
+        function isHardRefresh() {
+            const navEntries = performance.getEntriesByType('navigation');
+            if (navEntries && navEntries.length > 0) {
+                const navEntry = navEntries[0];
+                return navEntry.type === 'reload' && navEntry.transferSize > 0;
+            }
+            return false;
+        }
+
+        if (isHardRefresh() || !localStorage.getItem('genesisMessageShown')) {
+            startTypingEffect();
+            localStorage.setItem('genesisMessageShown', 'true');
+        } else {
+            displayFullMessage();
+        }
+    });
+    </script>
+</body>
+</html>

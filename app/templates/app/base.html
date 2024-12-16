@@ -1,0 +1,215 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- ... existing head elements ... -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forum Posts for {{ link.title }}</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <style>
+        /* Add more space between each post */
+        .forum-posts-list li {
+            margin-bottom: 50px !important;
+            padding: 15px;
+            background-color: #333; /* Slight background to make posts stand out */
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        .post-content-short {
+            display: inline;
+        }
+        .post-content-full {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <div class="content-wrapper">
+
+        <!-- Search Bar with Advanced Search Toggle -->
+        <form method="get" action="{% url 'search' %}">
+            <div class="search-container">
+                <input type="text" name="q" class="search-bar" placeholder="Search" value="{{ request.GET.q }}">
+                <button type="button" class="advanced-search-button" onclick="toggleAdvancedSearch()">A</button>
+            </div>
+            <div class="advanced-search-container" id="advancedSearch">
+                <!-- Date Field Selection -->
+                <label for="date_field">Date Field:</label>
+                <select id="date_field" name="date_field">
+                    <option value="last_activity">Last Activity Date</option>
+                    <option value="created">Created Date</option>
+                    <option value="post_time">Post Time</option>
+                </select>
+
+                <!-- Date Range Picker -->
+                <label for="start_date">From:</label>
+                <input type="date" id="start_date" name="start_date">
+                <label for="end_date">To:</label>
+                <input type="date" id="end_date" name="end_date">
+            </div>
+        </form>
+
+        <div class="centered-box">
+            <h1>{{ link.title }}</h1>
+            <ul class="forum-posts-list">
+                {% for post in forum_posts %}
+                <li>
+                    <div class="post-header">
+                        <div class="author-role">
+                            <a href="{% url 'member_detail' post.dao_name post.author %}">{{ post.author }}</a> - {{ post.Role }}
+                        </div>
+                        <span class="post-time">{{ post.post_time }}</span>
+                    </div>
+
+                    {% if forloop.first and summary_content %}
+                        <!-- Toggle Button placed under the author name -->
+                        <button onclick="toggleContent()" class="toggle-content-button">Toggle Content</button>
+
+                        <!-- Content with Toggle -->
+                        <div class="post-content">
+                            <div id="original-content">
+                                {{ post.content|safe }}
+                            </div>
+                            <div id="summary-content" style="display:none;">
+                                {{ summary_content|safe }}
+                            </div>
+                        </div>
+                        <!-- Actions: Likes and Replies only -->
+                        <div class="post-actions">
+                            <div class="left-actions">
+                                <span>
+                                    <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                                </span>
+                                <span>
+                                    <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                                </span>
+                            </div>
+                            <!-- No right-actions div here -->
+                        </div>
+                        <!-- Toggle Content Script -->
+                        <script>
+                            function toggleContent() {
+                                var original = document.getElementById('original-content');
+                                var summary = document.getElementById('summary-content');
+                                if (original.style.display === 'none') {
+                                    original.style.display = 'block';
+                                    summary.style.display = 'none';
+                                } else {
+                                    original.style.display = 'none';
+                                    summary.style.display = 'block';
+                                }
+                            }
+                        </script>
+                    {% else %}
+                        <!-- Content for Other Posts with Truncation -->
+                        <div class="post-content">
+                            <span class="post-content-short" id="short-content-{{ forloop.counter }}">
+                                {{ post.content|truncatechars:100 }}
+                            </span>
+                            <span class="post-content-full" id="full-content-{{ forloop.counter }}">
+                                {{ post.content|safe }}
+                            </span>
+                        </div>
+                        <!-- Actions: Likes, Replies, View More -->
+                        <div class="post-actions">
+                            <div class="left-actions">
+                                <span>
+                                    <a href="javascript:void(0)" onclick="toggleLikers('likers-{{ post.PostID }}')">Likes:</a> {{ post.total_likes }}
+                                </span>
+                                <span>
+                                    <a href="javascript:void(0)" onclick="toggleReplies('replies-{{ post.PostID }}')">Replies:</a> {{ post.TotalReplies }}
+                                </span>
+                            </div>
+                            <div class="right-actions">
+                                <button onclick="togglePostContent({{ forloop.counter }})" id="toggle-button-{{ forloop.counter }}">View More</button>
+                            </div>
+                        </div>
+                    {% endif %}
+
+
+                    <!-- Likers and Replies display -->
+                    <div id="likers-{{ post.PostID }}" style="display:none;">
+                        {% if post.likes_list %}
+                            <strong>Likers:</strong>
+                            {% for liker in post.likes_list %}
+                            <a href="{% url 'member_detail' post.dao_name liker %}">{{ liker }}</a>{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            No likes yet.
+                        {% endif %}
+                    </div>
+                    <div id="replies-{{ post.PostID }}" style="display:none;">
+                        {% if post.replies_list %}
+                            <strong>Replies:</strong>
+                            <ul>
+                                {% for reply in post.replies_list %}
+                                    <li><a href="{% url 'member_detail' post.dao_name reply.0 %}">{{ reply.0 }}</a>: {{ reply.1 }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            No replies yet.
+                        {% endif %}
+                    </div>
+                </li>
+                {% empty %}
+                <li>No posts found.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="{% url 'home' %}" class="nav-item nav-home {% if active_page == 'home' %}active{% endif %}">Home</a>
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-job-board {% if active_page == 'job_board' %}active{% endif %}">Job Board</a>
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="#" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="{% static 'js/home.js' %}"></script>
+    <script src="{% static 'js/login.js' %}"></script>
+    <script>
+        function toggleLikers(id) {
+            var element = document.getElementById(id);
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleReplies(id) {
+            var element = document.getElementById(id);
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function togglePostContent(index) {
+            var shortContent = document.getElementById("short-content-" + index);
+            var fullContent = document.getElementById("full-content-" + index);
+            var button = document.getElementById("toggle-button-" + index);
+
+            // Ensure elements are always in sync with the toggle state
+            if (fullContent.style.display === "none" || !fullContent.style.display) {
+                shortContent.style.display = "none";
+                fullContent.style.display = "inline";
+                button.textContent = "View Less";
+            } else {
+                shortContent.style.display = "inline";
+                fullContent.style.display = "none";
+                button.textContent = "View More";
+            }
+        }
+    </script>
+</body>
+</html>
