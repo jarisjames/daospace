@@ -603,50 +603,126 @@ def generate_unique_code():
 
 
 
+import requests
+import logging
+import ast
+
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_protect
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
 @csrf_protect
 def profile_view(request, account):
-    daos = DAO.objects.all()  # Fetch all DAOs from the database
-
+    """
+    Example profile view that fetches pinned GLB files (just like the marketplace).
+    """
+    # Your existing code for fetching DAOs, forum posts, etc.
+    daos = DAO.objects.all()
     forum_posts = ForumPosts.objects.filter(wallet_address=account)
     forum_links = ForumLinks.objects.filter(wallet_address=account)
-
-    # Process posts to get likes and replies
+    
+    # Existing forum_posts processing ...
     for post in forum_posts:
         post.likes_list = post.likes.split(',') if post.likes else []
         try:
             replies_tuples = ast.literal_eval(post.replies)
-            post.replies_list = [(reply[0], reply[1]) for reply in replies_tuples]  # Store as tuples (replier, reply_content)
+            post.replies_list = [(reply[0], reply[1]) for reply in replies_tuples]
         except (ValueError, SyntaxError):
             post.replies_list = []
-
-        # Assign link_id for each post
+        
         try:
             link = ForumLinks.objects.get(title=post.title, name=post.dao_name)
             post.link_id = link.id
         except ForumLinks.DoesNotExist:
             post.link_id = None
         except ForumLinks.MultipleObjectsReturned:
-            # Handle case where multiple links exist for the same title and dao_name
             links = ForumLinks.objects.filter(title=post.title, name=post.dao_name)
             post.link_id = links.first().id if links.exists() else None
+
+    # ========== NEW: fetch contributor cards from Pinata the same way as marketplace ==========
+
+    pinata_url = "https://api.pinata.cloud/data/pinList"
+    headers = {"Authorization": f"Bearer {settings.PINATA_JWT}"}
+    params = {"status": "pinned", "pageLimit": 1000, "pageOffset": 0}
+
+    contributor_cards = []
+    try:
+        response = requests.get(pinata_url, headers=headers, params=params, timeout=15)
+        response.raise_for_status()
+        pinata_data = response.json()
+
+        for item in pinata_data.get("rows", []):
+            item_size = item.get("size", 0)
+            # Skip large items if desired
+            if item_size > 1_000_000:
+                continue
+
+            metadata_cid = item.get("ipfs_pin_hash")
+            if not metadata_cid:
+                continue
+
+            # Fetch JSON metadata from a custom or public gateway
+            metadata_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{metadata_cid}"
+            try:
+                metadata_response = requests.get(metadata_url, timeout=15)
+                metadata_response.raise_for_status()
+                metadata = metadata_response.json()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching metadata for CID {metadata_cid}: {e}")
+                continue
+
+            raw_animation_url = metadata.get("animation_url")
+            if raw_animation_url and raw_animation_url.startswith("ipfs://"):
+                cid_part = raw_animation_url.replace("ipfs://", "")
+                animation_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{cid_part}"
+            else:
+                animation_url = raw_animation_url
+
+            # Just as in the marketplace
+            attributes = metadata.get("attributes", [])
+            contributor_address = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Contributor Address"),
+                "Unknown"
+            )
+            token_id = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Token ID"),
+                "Unknown"
+            )
+
+            contributor_cards.append({
+                "name": metadata.get("name", "Unknown"),
+                "contributor_address": contributor_address,
+                "token_id": token_id,
+                "animation_url": animation_url,
+                "max_supply": 100,  # or parse from contract if you wish
+                "price": "0.000369 ETH",
+            })
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch data from Pinata: {e}")
+
+    # ========== END NEW SECTION ==========
 
     if request.method == 'POST':
         forum_username = request.POST['forumUsername']
         dao_name = request.POST['daoName']
         unique_code = generate_unique_code()
-        
-        # Save the unique code in the session for later verification
+
         request.session['unique_code'] = unique_code
         
-        # Return the unique code as JSON response
         return JsonResponse({'unique_code': unique_code})
-    
+
     return render(request, 'app/profile.html', {
         'account': account,
         'daos': daos,
         'forum_posts': forum_posts,
-        'forum_links': forum_links
+        'forum_links': forum_links,
+        'contributor_cards': contributor_cards  # Pass to template
     })
+
 
 # Function to suppress output (if necessary)
 class SuppressOutput:
@@ -776,59 +852,210 @@ import os
 
 # Whitelist mapping: wallet addresses to GLB file paths
 WALLET_TO_GLB = {
-    "0xb04e6891e584f2884ad2ee90b6545ba44f843c4a": "models/CCs/jarisjames.glb",
-    "0xc2971fe806ce4438da09e21fc7be7fb121cf7e13": "models/CCs/sixty.glb",
     "0xca85c622d4c61047f96e352cb919695486a193e6": "models/CCs/Jaf.glb",
     "0xe50c860db2ddc5e9c901aa3b3dc497b3e6ea4ad5": "models/CCs/addie.glb",
-    "0xa439a408a8e4f1d07757a21ad0858f62ece0a77a": "models/CCs/janaBe.glb",
-    "0xd8936e602e38dfee5d6466865068b94b1943debf": "models/CCs/forexus.glb",
-    "0x53eaa0d7f5e43d47b0b0e30b283e923601eaa80b": "models/CCs/dzonson.glb",
-    "0xbe3f82034778fbf474060f7d4a032f592559ab4d": "models/CCs/firefly808.glb",
-    "0x3bc71d21dc7b07a70e01159593d8f954eb065644": "models/CCs/coffee-crusher.glb",
+    "0xf31df2dcd4083ee57f0d33d386656cfbd1e859a1": "models/CCs/jengajojo.glb",
     "0x4d32d90d6535bd4e7eabaa27ee72932cb214bbfa": "models/CCs/bitblondy.glb",
-    "0xafd4aa1eecefb409e627674f023b235c3b06203d": "models/CCs/sohobiit.glb",
     "0xc04d122c91bbcd4c15f0ebb73fc3fcdaee687fd4": "models/CCs/winverse.glb",
     "0x326301483aaa7366960877fa18b019e9c2d53e5d": "models/CCs/lionmsee.glb",
-    "0xb4ca913e2b6efb7cf3798b41cd68c72a5d1cac23": "models/CCs/KAF.glb",
+    "0xbe3f82034778fbf474060f7d4a032f592559ab4d": "models/CCs/firefly808.glb",
+    "0xecc2a9240268bc7a26386ecb49e1befca2706ac9": "models/CCs/stablelab.glb",
+    "0x3bc71d21dc7b07a70e01159593d8f954eb065644": "models/CCs/coffee-crusher.glb",
+    "0xd8936e602e38dfee5d6466865068b94b1943debf": "models/CCs/forexus.glb",
+    "0xa439a408a8e4f1d07757a21ad0858f62ece0a77a": "models/CCs/janaBe.glb",
+    "0x53eaa0d7f5e43d47b0b0e30b283e923601eaa80b": "models/CCs/dzonson.glb",
+    "0xb04e6891e584f2884ad2ee90b6545ba44f843c4a": "models/CCs/jarisjames.glb",
+    "0xafd4aa1eecefb409e627674f023b235c3b06203d": "models/CCs/sohobiit.glb",
+    "0xc2971fe806ce4438da09e21fc7be7fb121cf7e13": "models/CCs/sixty.glb",
     "0xfa773d02eb76ad8c7585d36c87707b9fe13d766d": "models/CCs/cr1st0f.glb",
-    "0xf31df2dcd4083ee57f0d33d386656cfbd1e859a1": "models/CCs/jengajojo.glb",
-    "0x1d671d1b191323a38490972d58354971e5c1cd2a": "models/CCs/andreitr.glb",
-    "0x6f9bb7e454f5b3eb2310343f0e99269dc2bb8a1d": "models/CCs/alexq.glb",
+
     "0x7f953f11343408ebccaecd04eb0d1e6bacdef87f": "models/CCs/coolhorsegirl.glb",
+    "0x1d671d1b191323a38490972d58354971e5c1cd2a": "models/CCs/andreitr.glb",
+
+
+    "0xcee60ba370abbda7c261576ee405545ef72ca8e6": "models/CCs/xenias.glb",
+
+    "0x6f9bb7e454f5b3eb2310343f0e99269dc2bb8a1d": "models/CCs/alexq.glb",
+    "0x79f16606e9a64edb8ba09c55ee1375bda883c032": "models/CCs/GozmanGonzalez4.glb",
+
+    
+    "0xb4ca913e2b6efb7cf3798b41cd68c72a5d1cac23": "models/CCs/KAF.glb",
 
     
 
-
-    # Add the rest of your wallet address and GLB file mappings here
-    # For example:
-    # "0x123...abc": "models/CCs/addie.glb",
-    # "0x456...def": "models/CCs/akihiru.glb",
-    # "0x789...ghi": "models/CCs/alexq.glb",
-    # ...
 }
 
+# Dictionary for wallet-to-token ID mapping
+WALLET_TO_TOKEN_ID = {
+    "0xca85c622d4c61047f96e352cb919695486a193e6": 1,
+    "0xe50c860db2ddc5e9c901aa3b3dc497b3e6ea4ad5": 2,
+    "0xf31df2dcd4083ee57f0d33d386656cfbd1e859a1": 3,
+    "0x4d32d90d6535bd4e7eabaa27ee72932cb214bbfa": 4,
+    "0xc04d122c91bbcd4c15f0ebb73fc3fcdaee687fd4": 5,
+    "0x326301483aaa7366960877fa18b019e9c2d53e5d": 6,
+    "0xbe3f82034778fbf474060f7d4a032f592559ab4d": 7,
+    
+    "0x3bc71d21dc7b07a70e01159593d8f954eb065644": 9,
+    "0xd8936e602e38dfee5d6466865068b94b1943debf": 10,
+    "0xa439a408a8e4f1d07757a21ad0858f62ece0a77a": 11,
+    "0x53eaa0d7f5e43d47b0b0e30b283e923601eaa80b": 12,
+    "0xb04e6891e584f2884ad2ee90b6545ba44f843c4a": 13,
+    "0xafd4aa1eecefb409e627674f023b235c3b06203d": 14,
+    "0xc2971fe806ce4438da09e21fc7be7fb121cf7e13": 15,
+    "0xfa773d02eb76ad8c7585d36c87707b9fe13d766d": 16,
+    
+    "0x7f953f11343408ebccaecd04eb0d1e6bacdef87f": 18,
+    "0x1d671d1b191323a38490972d58354971e5c1cd2a": 19,
+  
+
+
+    "0xcee60ba370abbda7c261576ee405545ef72ca8e6": 22,
+
+    "0x6f9bb7e454f5b3eb2310343f0e99269dc2bb8a1d": 24,
+    "0x79f16606e9a64edb8ba09c55ee1375bda883c032": 25,
+
+
+    "0xb4ca913e2b6efb7cf3798b41cd68c72a5d1cac23": 28,
+
+    # Add more mappings as needed
+}
+
+# Create a new mapping of wallet addresses to contributor names
+WALLET_TO_NAME = {
+    wallet: os.path.basename(glb_path).replace(".glb", "")  # Extracts the filename without .glb
+    for wallet, glb_path in WALLET_TO_GLB.items()
+}
+
+
+@csrf_exempt
 def claim_contributor_card(request):
-    # Fetch the connected wallet address from the session
-    wallet_address = request.session.get('wallet_address')
+    if request.method == "POST":
+        wallet_address = request.session.get("wallet_address")
+        if not wallet_address:
+            return JsonResponse({"success": False, "message": "Wallet not connected"})
+        
+        wallet_address = wallet_address.lower()
+        token_id = WALLET_TO_TOKEN_ID.get(wallet_address)
+        if not token_id:
+            return JsonResponse({"success": False, "message": "Wallet not whitelisted"})
 
+        glb_file = request.FILES.get("glb_file")
+        if not glb_file:
+            return JsonResponse({"success": False, "message": "No GLB file in request."})
+
+        cover_image_file = request.FILES.get("cover_image")
+
+        # Get contributor name
+        contributor_name = WALLET_TO_NAME.get(wallet_address, "Unknown")
+
+        # Update the metadata to include the contributor's name
+        base_metadata = {
+            "name": f"Contributor Card {token_id} ({contributor_name})",
+            "description": "The 30 most active contributors of RARI DAO, from its first forum post on August 3, 2021, to October 31, 2024, are immortalized in the very first collection of Contributor Cards. These limited-edition NFTs unlock exclusive rewards and in-app experiences on daospace.ai, ranked by token ID.",
+            "attributes": [
+                {"trait_type": "Contributor Name", "value": contributor_name},
+                {"trait_type": "Contributor Address", "value": wallet_address},
+                {"trait_type": "Token ID", "value": token_id},
+                {"trait_type": "Max Supply", "value": 100}
+            ]
+        }
+
+
+        try:
+            ########################################################
+            # (A) LIST AND DELETE EXISTING FILES FOR TOKEN ID
+            ########################################################
+            list_url = "https://api.pinata.cloud/data/pinList"
+            headers = {"Authorization": f"Bearer {settings.PINATA_JWT}"}
+            params = {"status": "pinned", "metadata[name]": f"{token_id}"}
+
+            # List files matching the token ID
+            response = requests.get(list_url, headers=headers, params=params)
+            response.raise_for_status()
+            pinned_files = response.json().get("rows", [])
+
+            # Unpin each file
+            for file in pinned_files:
+                file_cid = file.get("ipfs_pin_hash")
+                if file_cid:
+                    unpin_url = f"https://api.pinata.cloud/pinning/unpin/{file_cid}"
+                    requests.delete(unpin_url, headers=headers)
+
+            ########################################################
+            # (B) PIN THE NEW GLB FILE
+            ########################################################
+            pin_url = "https://api.pinata.cloud/pinning/pinFileToIPFS"
+            files_data = {
+                "file": (f"{token_id}.glb", glb_file, "application/octet-stream")
+            }
+            data = {"pinataMetadata": json.dumps({"name": f"{token_id}.glb"})}
+            response = requests.post(pin_url, headers=headers, files=files_data, data=data)
+            response.raise_for_status()
+            glb_cid = response.json().get("IpfsHash")
+
+            ########################################################
+            # (C) PIN THE NEW COVER IMAGE
+            ########################################################
+            cover_cid = None
+            if cover_image_file:
+                cover_files_data = {
+                    "file": (f"{token_id}_cover.png", cover_image_file, "image/png")
+                }
+                cover_data = {"pinataMetadata": json.dumps({"name": f"{token_id}_cover.png"})}
+                response = requests.post(pin_url, headers=headers, files=cover_files_data, data=cover_data)
+                response.raise_for_status()
+                cover_cid = response.json().get("IpfsHash")
+
+            ########################################################
+            # (D) PIN THE UPDATED METADATA JSON
+            ########################################################
+            pin_json_url = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
+            headers_json = {"Authorization": f"Bearer {settings.PINATA_JWT}", "Content-Type": "application/json"}
+
+            # Fixing `animation_url` to use an HTTPS gateway
+            animation_url_https = f"https://gateway.pinata.cloud/ipfs/{glb_cid}"
+
+            final_metadata = dict(base_metadata)
+            final_metadata["animation_url"] = f"ipfs://{glb_cid}"  # Native IPFS URL for on-chain use
+            final_metadata["animation_url_https"] = animation_url_https  # HTTP version for marketplaces
+            final_metadata["animation_details"] = {"mime_type": "model/gltf-binary"}  # Add MIME type for Rarible
+    
+
+            payload = {
+                "pinataMetadata": {"name": f"{token_id}.json"},
+                "pinataContent": final_metadata
+            }
+            response = requests.post(pin_json_url, headers=headers_json, json=payload)
+            response.raise_for_status()
+            metadata_cid = response.json().get("IpfsHash")
+
+            return JsonResponse({
+                "success": True,
+                "ipfs_url": f"ipfs://{metadata_cid}",
+                "animation_url_https": animation_url_https,
+                "message": "NFT metadata updated successfully."
+            })
+
+        except requests.exceptions.RequestException as e:
+            return JsonResponse({"success": False, "message": f"IPFS operation failed: {str(e)}"})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": f"Unexpected error: {str(e)}"})
+
+    # =============== If GET, just render the template (unchanged) ===============
+    wallet_address = request.session.get("wallet_address")
     if not wallet_address:
-        # Wallet not connected: Display the Contributor Card Template
         glb_file = "models/ContributorCardTemplate.glb"
         return render(request, 'app/claim_contributor_card.html', {'glb_file': glb_file})
 
-    # Convert wallet_address to lowercase to ensure case-insensitive matching
     wallet_address = wallet_address.lower()
-
-    # Find the corresponding .glb file using the whitelist dictionary
     glb_file = WALLET_TO_GLB.get(wallet_address)
-
     if not glb_file:
-        # Wallet is connected but not whitelisted: Display the Contributor Card Template
         glb_file = "models/ContributorCardTemplate.glb"
-        return render(request, 'app/claim_contributor_card.html', {'glb_file': glb_file})
 
-    # Wallet is connected and whitelisted: Display the custom Contributor Card
     return render(request, 'app/claim_contributor_card.html', {'glb_file': glb_file})
+
+
+
 
 
 
@@ -846,3 +1073,253 @@ def dao_feed(request, dao_name=None):
         topics = TopicSummaries.objects.all().order_by('-Created')
     return render(request, 'app/dao_feed.html', {'dao': dao, 'topics': topics})
 
+
+
+
+
+
+
+
+
+
+
+import logging
+
+# Define logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # Adjust level as needed (e.g., INFO, ERROR)
+
+def contributor_cards_marketplace(request):
+    try:
+        pinata_url = "https://api.pinata.cloud/data/pinList"
+        headers = {"Authorization": f"Bearer {settings.PINATA_JWT}"}
+        params = {"status": "pinned", "pageLimit": 1000, "pageOffset": 0}
+
+        logger.debug("Fetching pinned items from Pinata...")
+        response = requests.get(pinata_url, headers=headers, params=params)
+        logger.debug(f"Pinata response status code: {response.status_code}")
+
+        if response.status_code == 429:
+            logger.error("Rate limit hit: 429 Too Many Requests.")
+        response.raise_for_status()
+        pinata_data = response.json()
+
+        contributor_cards = []
+        total_items = len(pinata_data.get("rows", []))
+        logger.debug(f"Total pinned items found: {total_items}")
+
+        for index, item in enumerate(pinata_data.get("rows", []), start=1):
+            item_size = item.get("size", 0)
+            if item_size > 1_000_000:
+                logger.debug(f"Skipping item #{index} due to size > 1MB.")
+                continue
+
+            metadata_cid = item.get("ipfs_pin_hash")
+            if not metadata_cid:
+                logger.debug(f"Skipping item #{index} due to missing CID.")
+                continue
+
+            # Switch to custom gateway
+            metadata_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{metadata_cid}"
+            logger.debug(f"Fetching metadata from {metadata_url} for item #{index}...")
+            try:
+                metadata_response = requests.get(metadata_url, timeout=15)
+                logger.debug(f"Metadata response status for item #{index}: {metadata_response.status_code}")
+                if metadata_response.status_code == 429:
+                    logger.error(f"Rate limit hit when fetching metadata for item #{index}.")
+                metadata_response.raise_for_status()
+                metadata = metadata_response.json()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching metadata for item #{index}: {e}")
+                continue
+
+            raw_animation_url = metadata.get("animation_url")
+            if raw_animation_url and raw_animation_url.startswith("ipfs://"):
+                cid_part = raw_animation_url.replace("ipfs://", "")
+                animation_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{cid_part}"
+            else:
+                animation_url = raw_animation_url
+
+            attributes = metadata.get("attributes", [])
+            contributor_address = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Contributor Address"),
+                "Unknown"
+            )
+
+            
+
+
+            token_id = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Token ID"),
+                "Unknown"
+            )
+
+            # Pass static max supply (100) without attempting to calculate remaining supply
+            # Extract Contributor Name from metadata["name"], removing extra text
+            import re
+
+            # Extract Contributor Name from metadata["name"] using regex
+            match = re.search(r"\((.*?)\)", metadata.get("name", "Unknown"))
+            contributor_name = match.group(1) if match else "Unknown"
+
+
+            contributor_cards.append({
+                "name": metadata.get("name", "Unknown"),
+                "contributor_name": contributor_name,  # ✅ Add Contributor Name
+                "contributor_address": contributor_address,
+                "token_id": token_id,
+                "animation_url": animation_url,
+                "max_supply": 100,  # Static max supply from the contract
+                "price": "0.000369 ETH",
+                "metadata_uri": metadata_url,
+            })
+
+
+        logger.debug(f"Final number of contributor cards prepared: {len(contributor_cards)}")
+        return render(request, "app/contributor_cards_marketplace.html", {
+            "contributor_cards": contributor_cards,
+        })
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch data from Pinata: {e}")
+        return render(request, "app/contributor_cards_marketplace.html", {
+            "error": f"Failed to fetch data: {str(e)}"
+        })
+
+
+
+
+
+import logging
+import json
+import requests
+
+from django.conf import settings
+from django.shortcuts import render
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # Adjust if necessary
+
+def cc_secondary_marketplace(request):
+    """
+    Fetches pinned items from Pinata (like the primary marketplace view),
+    filters them, and renders the cc-secondary-marketplace.html template.
+
+    The difference here is that we build a dictionary of token_id -> .glb URL
+    and pass it to the template as cards_dict_json, so the front-end can skip
+    calling contract.uri(tokenId) and directly show each pinned .glb.
+    """
+    try:
+        pinata_url = "https://api.pinata.cloud/data/pinList"
+        headers = {"Authorization": f"Bearer {settings.PINATA_JWT}"}
+        params = {"status": "pinned", "pageLimit": 1000, "pageOffset": 0}
+
+        logger.debug("Fetching pinned items from Pinata...")
+        response = requests.get(pinata_url, headers=headers, params=params)
+        logger.debug(f"Pinata response status code: {response.status_code}")
+
+        if response.status_code == 429:
+            logger.error("Rate limit hit: 429 Too Many Requests.")
+        response.raise_for_status()
+        pinata_data = response.json()
+
+        contributor_cards = []
+        total_items = len(pinata_data.get("rows", []))
+        logger.debug(f"Total pinned items found: {total_items}")
+
+        # We'll build a dictionary: { "0": "https://...", "1": "https://...", ... }
+        pinned_dict = {}
+
+        for index, item in enumerate(pinata_data.get("rows", []), start=1):
+            item_size = item.get("size", 0)
+            if item_size > 1_000_000:
+                logger.debug(f"Skipping item #{index} due to size > 1MB.")
+                continue
+
+            metadata_cid = item.get("ipfs_pin_hash")
+            if not metadata_cid:
+                logger.debug(f"Skipping item #{index} due to missing CID.")
+                continue
+
+            # Use your custom Pinata gateway for fetching JSON metadata
+            metadata_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{metadata_cid}"
+            logger.debug(f'Fetching metadata from {metadata_url} for item #{index}...')
+
+            try:
+                metadata_response = requests.get(metadata_url, timeout=15)
+                logger.debug(f'Metadata response status for item #{index}: {metadata_response.status_code}')
+                if metadata_response.status_code == 429:
+                    logger.error(f"Rate limit hit when fetching metadata for item #{index}.")
+                metadata_response.raise_for_status()
+                metadata = metadata_response.json()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching metadata for item #{index}: {e}")
+                continue
+
+            # Convert ipfs:// links to your chosen gateway
+            raw_animation_url = metadata.get("animation_url", "")
+            if raw_animation_url.startswith("ipfs://"):
+                cid_part = raw_animation_url.replace("ipfs://", "")
+                animation_url = f"https://blush-gentle-mollusk-107.mypinata.cloud/ipfs/{cid_part}"
+            else:
+                animation_url = raw_animation_url
+
+            # Extract relevant attributes
+            attributes = metadata.get("attributes", [])
+            contributor_address = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Contributor Address"),
+                "Unknown"
+            )
+            token_id = next(
+                (attr["value"] for attr in attributes if attr.get("trait_type") == "Token ID"),
+                "Unknown"
+            )
+
+            import re
+
+            # Extract Contributor Name from metadata["name"]
+            match = re.search(r"\((.*?)\)", metadata.get("name", "Unknown"))
+            contributor_name = match.group(1) if match else "Unknown"
+
+            contributor_cards.append({
+                "name": metadata.get("name", "Unknown"),
+                "contributor": contributor_name,  # ✅ Corrected Contributor Name
+                "contributor_address": contributor_address,
+                "token_id": token_id,
+                "animation_url": animation_url,
+                "max_supply": 100,  # or from contract if needed
+                "price": "0.000369 ETH",  # or some logic
+            })
+
+
+            # Build the pinned_dict for direct usage in the front-end
+            if token_id is not None:
+                pinned_dict[str(token_id)] = animation_url
+
+        logger.debug(f"Final number of contributor cards prepared: {len(contributor_cards)}")
+
+        # Convert pinned_dict to JSON so we can embed it in <script> tag
+        cards_dict_json = json.dumps(pinned_dict)
+
+        # Build a dictionary mapping token_id -> contributor_name
+        contributor_names_dict = {str(card["token_id"]): card["contributor"] for card in contributor_cards}
+        contributor_names_dict_json = json.dumps(contributor_names_dict)  # Convert to JSON for template
+
+        return render(
+            request,
+            "app/cc-secondary-marketplace.html",
+            {
+                "contributor_cards": contributor_cards,
+                "cards_dict_json": cards_dict_json,
+                "contributor_names_dict_json": contributor_names_dict_json,  # ✅ Pass this to template
+            }
+        )
+
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch data from Pinata: {e}")
+        return render(
+            request,
+            "app/cc-secondary-marketplace.html",
+            {"error": f"Failed to fetch data: {str(e)}"}
+        )

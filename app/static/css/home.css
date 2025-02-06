@@ -768,3 +768,66 @@ ul.forum-posts-list li .post-time {
     /* ... other existing styles ... */
   }
   
+
+
+
+
+
+
+  @media screen and (max-width: 768px) {
+    /* Prevent overall horizontal scrolling */
+    body, .content-wrapper {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ONLY remove contributor address on the contributor_cards_marketplace page */
+    .contributor-cards-marketplace .dao-metrics > div:nth-child(1) {
+        display: none !important;
+    }
+
+    /* Stack each card neatly so the Buy button is visible */
+    .dao-item {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important; 
+        margin-bottom: 15px !important;
+    }
+
+    /* Make the 'Buy' button neatly displayed */
+    .buy-button {
+        display: inline-block !important;
+        margin: 0 !important;
+        padding: 6px 12px !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+
+    /* === Make top two buttons the same size despite different text === */
+    .button-container {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: stretch !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        margin: 20px auto !important;
+        max-width: 100% !important;
+    }
+    .btn-link {
+        /* Each button ~45% of the row width */
+        flex: 0 0 45% !important;
+        box-sizing: border-box !important;
+
+        /* Force same height by letting text wrap */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        white-space: normal !important;
+
+        font-size: 11px !important;
+        padding: 8px !important;
+    }
+}

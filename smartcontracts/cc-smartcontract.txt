@@ -1,0 +1,495 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// Pinned to an older OpenZeppelin release that uses pragma ^0.8.0
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.7.3/contracts/token/ERC1155/ERC1155.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.7.3/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v4.7.3/contracts/token/common/ERC2981.sol";
+
+/**
+ * @title ContributorCardsLazyMint
+ * @dev ERC-1155 contract with:
+ *      - Lazy Minting
+ *      - EIP-2981 Royalties (10% per contributor)
+ *      - Max supply = 100 per token ID
+ *      - 10% royalty to each token's contributor
+ *      - Single-transaction secondary sale function (purchaseFromSeller)
+ */
+contract ContributorCardsTEST7 is ERC1155, ERC2981, Ownable {
+    // -----------------------------------------------------------
+    // -------------------- ORIGINAL CODE (UNMODIFIED) -----------
+    // -----------------------------------------------------------
+
+    // Price for lazy minting: 0.000369 ETH
+    uint256 public constant LAZY_MINT_PRICE = 0.000369 ether;
+
+    // Max supply per token ID
+    uint256 public constant MAX_SUPPLY_PER_TOKEN = 100;
+
+    // Each token ID will store:
+    //   - ipfsMetadataUri: IPFS URI from the contributor’s JSON
+    //   - minted: how many have been minted so far for that token ID
+    //   - lockedRoyaltyReceiver: the contributor’s address that receives royalties (set at first mint)
+    struct TokenData {
+        string ipfsMetadataUri;
+        uint256 minted;
+        address lockedRoyaltyReceiver;
+    }
+
+    // tokenId => TokenData
+    mapping(uint256 => TokenData) private _tokenData;
+
+    /**
+     * @dev Pass an empty string to ERC1155 because we store per-token URIs manually.
+     *      Ownable() automatically sets msg.sender as the owner.
+     */
+    constructor() ERC1155("") Ownable() {
+        // (Optional) set a default royalty basis here if desired.
+    }
+
+    /**
+     * @notice The public name shown on block explorers (ERC-721-like name()).
+     */
+    function name() public pure returns (string memory) {
+        return "Contributor Cards (1st Edition)";
+    }
+
+    /**
+     * @notice The public symbol shown on block explorers (ERC-721-like symbol()).
+     */
+    function symbol() public pure returns (string memory) {
+        return "CC";
+    }
+
+    /**
+     * @notice Lazy mint to put off-chain metadata on-chain.
+     * @param tokenId Unique ID representing one contributor’s collection.
+     * @param quantity Amount of tokens to mint (1 to 100).
+     * @param ipfsMetadataUri The IPFS URI to the JSON metadata.
+     * @param contributor Royalty recipient for that token ID.
+     */
+    function lazyMint(
+        uint256 tokenId,
+        uint256 quantity,
+        string memory ipfsMetadataUri,
+        address contributor
+    ) external payable {
+        // Must pay exactly price * quantity
+        require(
+            msg.value == LAZY_MINT_PRICE * quantity,
+            "Please send exact mint price"
+        );
+        // Must have valid contributor
+        require(contributor != address(0), "Invalid contributor address");
+        // Enforce max supply = 100
+        require(
+            _tokenData[tokenId].minted + quantity <= MAX_SUPPLY_PER_TOKEN,
+            "Max supply of 100 minted for tokenId"
+        );
+
+        // If first time minted, set the IPFS URI & royalty
+        if (_tokenData[tokenId].minted == 0) {
+            _tokenData[tokenId].ipfsMetadataUri = ipfsMetadataUri;
+            _tokenData[tokenId].lockedRoyaltyReceiver = contributor;
+            // 10% royalty = 1000 basis points
+            _setTokenRoyalty(tokenId, contributor, 1000);
+        } else {
+            // On subsequent mints, URI & contributor must match original
+
+            require(
+                _tokenData[tokenId].lockedRoyaltyReceiver == contributor,
+                "Contributor mismatch"
+            );
+        }
+
+        // Immediately forward the lazy-mint payment to the contributor
+        (bool sent, ) = contributor.call{value: msg.value}("");
+        require(sent, "Payment to contributor failed");
+
+        // Increase minted count and mint to msg.sender
+        _tokenData[tokenId].minted += quantity;
+        _mint(msg.sender, tokenId, quantity, "");
+    }
+
+    /**
+     * @notice Single-transaction secondary sale: buyer calls this with ETH.
+     *         Pays 10% royalty, 90% to the seller, then transfers tokens.
+     */
+    function purchaseFromSeller(
+        address seller,
+        uint256 tokenId,
+        uint256 quantity,
+        uint256 expectedTotalPrice
+    ) external payable {
+        require(seller != address(0), "Invalid seller address");
+        require(seller != msg.sender, "You already own them");
+        require(quantity > 0, "Quantity must be > 0");
+        require(
+            msg.value == expectedTotalPrice,
+            "ETH sent does not match expected price"
+        );
+
+        // Calculate royalty
+        (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(
+            tokenId,
+            msg.value
+        );
+
+        // Always process royalty payments, even if the buyer is the royalty recipient
+        if (royaltyReceiver != address(0) && royaltyAmount > 0) {
+            (bool royaltySent, ) = royaltyReceiver.call{value: royaltyAmount}("");
+            require(royaltySent, "Royalty payment failed");
+        }
+
+
+        // Pay the remainder to the seller
+        uint256 remainder = msg.value - royaltyAmount;
+        (bool sellerPaid, ) = seller.call{value: remainder}("");
+        require(sellerPaid, "Seller payment failed");
+
+        // Transfer tokens
+        _safeTransferFrom(seller, msg.sender, tokenId, quantity, "");
+    }
+
+    /**
+     * @dev Return the IPFS URI for a given tokenId.
+     */
+    function uri(uint256 tokenId)
+        public
+        view
+        override
+        returns (string memory)
+    {
+        require(bytes(_tokenData[tokenId].ipfsMetadataUri).length > 0, "Metadata not set");
+
+        return string(
+            abi.encodePacked(
+                "https://ipfs.io/ipfs/",
+                _tokenData[tokenId].ipfsMetadataUri
+            )
+        );
+    }
+
+
+    /**
+     * @notice How many have been minted for a given tokenId.
+     */
+    function getMintedCount(uint256 tokenId) external view returns (uint256) {
+        return _tokenData[tokenId].minted;
+    }
+
+    /**
+     * @notice Allow contributors to update the metadata for their token ID.
+     * @param tokenId Unique ID of the token whose metadata is being updated.
+     * @param newIpfsUri New IPFS metadata URI to be stored.
+     */
+    
+    event MetadataUpdated(uint256 indexed tokenId, string newIpfsUri);
+
+    function updateMetadata(uint256 tokenId, string memory newIpfsUri) external {
+        require(
+            _tokenData[tokenId].lockedRoyaltyReceiver == msg.sender,
+            "Only the contributor can update metadata"
+        );
+        require(
+            bytes(newIpfsUri).length > 0,
+            "New metadata URI cannot be empty"
+        );
+
+        _tokenData[tokenId].ipfsMetadataUri = newIpfsUri;
+
+        // Emit the standard ERC1155 URI event so marketplaces can pick up the update
+        emit URI(uri(tokenId), tokenId);
+
+        // Also emit your custom event if needed
+        emit MetadataUpdated(tokenId, newIpfsUri);
+    }
+
+    /**
+     * @notice Owner can withdraw leftover ETH (if any).
+     */
+    function withdraw() external onlyOwner {
+        (bool success, ) = owner().call{value: address(this).balance}("");
+        require(success, "Withdraw failed");
+    }
+
+    /**
+     * @dev EIP-2981 + ERC1155 support
+     */
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155, ERC2981)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    // -----------------------------------------------------------
+    // ---------------- COMPREHENSIVE SECONDARY MARKET -----------
+    // -----------------------------------------------------------
+
+    struct Listing {
+        uint256 listingId;
+        address seller;
+        uint256 tokenId;
+        uint256 originalQuantity;
+        uint256 remainingQuantity;
+        uint256 pricePerToken;
+        bool active;
+    }
+
+    mapping(uint256 => Listing) private _listings;
+    uint256 private _listingCounter;
+
+    mapping(address => uint256[]) private _listingsByUser;
+    mapping(uint256 => uint256[]) private _listingsByTokenId;
+    uint256[] private _allListingIds;
+
+    event ListingCreated(
+        uint256 indexed listingId,
+        address indexed seller,
+        uint256 indexed tokenId,
+        uint256 originalQuantity,
+        uint256 pricePerToken
+    );
+    event ListingCancelled(uint256 indexed listingId);
+    event ListingPriceUpdated(uint256 indexed listingId, uint256 newPrice);
+    event ListingQuantityUpdated(uint256 indexed listingId, uint256 newQuantity);
+    event ListingPurchased(
+        uint256 indexed listingId,
+        address indexed buyer,
+        uint256 tokenId,
+        uint256 quantity,
+        uint256 totalPrice
+    );
+
+    /**
+     * @notice Create a listing for a specific token, quantity, and price (per token).
+     */
+    function createListing(
+        uint256 tokenId,
+        uint256 quantity,
+        uint256 pricePerToken
+    ) public {
+        require(
+            balanceOf(msg.sender, tokenId) >= quantity,
+            "Insufficient token balance"
+        );
+        require(pricePerToken > 0, "Price must be > 0");
+
+        _listingCounter++;
+        uint256 newListingId = _listingCounter;
+
+        _listings[newListingId] = Listing({
+            listingId: newListingId,
+            seller: msg.sender,
+            tokenId: tokenId,
+            originalQuantity: quantity,
+            remainingQuantity: quantity,
+            pricePerToken: pricePerToken,
+            active: true
+        });
+
+        _listingsByUser[msg.sender].push(newListingId);
+        _listingsByTokenId[tokenId].push(newListingId);
+        _allListingIds.push(newListingId);
+
+        emit ListingCreated(
+            newListingId,
+            msg.sender,
+            tokenId,
+            quantity,
+            pricePerToken
+        );
+    }
+
+    /**
+     * @notice Cancel an active listing. Does NOT move or burn tokens.
+     */
+    function cancelListing(uint256 listingId) external {
+        Listing storage lst = _listings[listingId];
+        require(lst.seller == msg.sender, "Not the seller");
+        require(lst.active, "Listing not active");
+
+        lst.active = false;
+        emit ListingCancelled(listingId);
+    }
+
+    /**
+     * @notice Update the price of an active listing.
+     */
+    function updateListingPrice(uint256 listingId, uint256 newPricePerToken)
+        external
+    {
+        Listing storage lst = _listings[listingId];
+        require(lst.seller == msg.sender, "Not the seller");
+        require(lst.active, "Listing not active");
+        require(newPricePerToken > 0, "Price must be > 0");
+
+        lst.pricePerToken = newPricePerToken;
+        emit ListingPriceUpdated(listingId, newPricePerToken);
+    }
+
+    /**
+     * @notice Update the quantity of an active listing (if not all sold yet).
+     */
+    function updateListingQuantity(uint256 listingId, uint256 newQuantity)
+        external
+    {
+        Listing storage lst = _listings[listingId];
+        require(lst.seller == msg.sender, "Not the seller");
+        require(lst.active, "Listing not active");
+        require(newQuantity <= lst.originalQuantity, "newQuantity > original listing");
+        require(
+            balanceOf(msg.sender, lst.tokenId) >= newQuantity,
+            "Insufficient token balance"
+        );
+
+        lst.remainingQuantity = newQuantity;
+        if (newQuantity == 0) {
+            lst.active = false;
+        }
+
+        emit ListingQuantityUpdated(listingId, newQuantity);
+    }
+
+    /**
+     * @notice Purchase some quantity from a listing, partial or full, while respecting a 10% royalty.
+     */
+    function purchaseFromListing(uint256 listingId, uint256 quantity)
+        external
+        payable
+    {
+        Listing storage lst = _listings[listingId];
+        require(lst.active, "Listing not active");
+        require(quantity > 0, "Quantity must be > 0");
+        require(quantity <= lst.remainingQuantity, "Not enough remaining in listing");
+
+        uint256 totalPrice = lst.pricePerToken * quantity;
+        require(msg.value == totalPrice, "Incorrect ETH sent");
+
+        // Ensure seller still owns enough tokens
+        require(
+            balanceOf(lst.seller, lst.tokenId) >= quantity,
+            "Seller no longer owns enough tokens"
+        );
+
+        // Royalty logic
+        (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(
+            lst.tokenId,
+            totalPrice
+        );
+
+        // Always process the royalty payment—even if the buyer is the royalty receiver.
+        if (royaltyReceiver != address(0) && royaltyAmount > 0) {
+            (bool royaltySent, ) = royaltyReceiver.call{value: royaltyAmount}("");
+            require(royaltySent, "Royalty payment failed");
+        }
+
+        // The seller gets the remaining amount.
+        uint256 sellerPayment = totalPrice - royaltyAmount;
+        (bool sellerPaid, ) = lst.seller.call{value: sellerPayment}("");
+        require(sellerPaid, "Seller payment failed");
+
+
+        _safeTransferFrom(lst.seller, msg.sender, lst.tokenId, quantity, "");
+
+        lst.remainingQuantity -= quantity;
+        if (lst.remainingQuantity == 0) {
+            lst.active = false;
+        }
+
+        emit ListingPurchased(
+            listingId,
+            msg.sender,
+            lst.tokenId,
+            quantity,
+            totalPrice
+        );
+    }
+
+    /**
+     * @notice Batch-creates multiple listings in one transaction.
+     */
+    function createListingsBatch(
+        uint256[] calldata tokenIds,
+        uint256[] calldata quantities,
+        uint256[] calldata pricePerTokens
+    ) external {
+        require(
+            tokenIds.length == quantities.length &&
+            tokenIds.length == pricePerTokens.length,
+            "Array length mismatch"
+        );
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            createListing(tokenIds[i], quantities[i], pricePerTokens[i]);
+        }
+    }
+
+    /**
+     * @notice Batch-purchases from multiple listings in one transaction.
+     *         Each partial or full quantity from each listing.
+     */
+    function purchaseListingsBatch(
+        uint256[] calldata listingIds,
+        uint256[] calldata quantities
+    ) external payable {
+        require(listingIds.length == quantities.length, "Array length mismatch");
+
+        uint256 totalCost = 0;
+        for (uint256 i = 0; i < listingIds.length; i++) {
+            Listing storage lst = _listings[listingIds[i]];
+            require(lst.active, "Listing not active");
+            require(
+                quantities[i] > 0 && quantities[i] <= lst.remainingQuantity,
+                "Invalid quantity"
+            );
+            totalCost += (lst.pricePerToken * quantities[i]);
+        }
+        require(msg.value == totalCost, "Incorrect ETH total");
+
+        for (uint256 i = 0; i < listingIds.length; i++) {
+            Listing storage lst = _listings[listingIds[i]];
+            uint256 qty = quantities[i];
+            uint256 subCost = lst.pricePerToken * qty;
+
+            // Royalties
+            (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(
+                lst.tokenId,
+                subCost
+            );
+            
+            // Determine how much ETH to transfer
+            uint256 royaltyToPay = (royaltyReceiver == msg.sender) ? 0 : royaltyAmount;
+            uint256 sellerPayment = msg.value - royaltyToPay;
+
+            // Process seller payment first
+            (bool sellerPaid, ) = lst.seller.call{value: sellerPayment}("");
+            require(sellerPaid, "Seller payment failed");
+
+            // Only send royalty if it's not a self-payment
+            if (royaltyToPay > 0) {
+                (bool royaltySent, ) = royaltyReceiver.call{value: royaltyToPay}("");
+                require(royaltySent, "Royalty payment failed");
+}
+
+            _safeTransferFrom(lst.seller, msg.sender, lst.tokenId, qty, "");
+
+            lst.remainingQuantity -= qty;
+            if (lst.remainingQuantity == 0) {
+                lst.active = false;
+            }
+
+            emit ListingPurchased(
+                listingIds[i],
+                msg.sender,
+                lst.tokenId,
+                qty,
+                subCost
+            );
+        }
+    }
+}

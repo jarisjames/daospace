@@ -1,0 +1,833 @@
+/* Define the Orbitron font */
+@font-face {
+    font-family: 'Orbitron';
+    src: url("/static/fonts/Orbitron/Orbitron-Black.2e6f175c43c7.ttf") format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+/* Define the Fantasma font */
+@font-face {
+    font-family: 'Fantasma';
+    src: url("/static/fonts/Fantasma/Fantasma-Regular.f692d48238b2.ttf") format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    background-color: black; /* Changed from white to black */
+    margin: 0;
+    font-family: 'Orbitron'; /* Use Orbitron font for body */
+    color: white; /* Text color set to white for visibility */
+    padding-top: 70px; /* Add space for the fixed search bar */
+    background-image: url("/static/Images/Background/VR HUD.e54f126a7340.svg");
+    background-size: cover; /* Cover the entire viewport */
+    background-repeat: no-repeat; /* Prevent repeating */
+    background-position: center; /* Center the background image */
+    background-attachment: fixed; /* Make sure the background is fixed */
+}
+
+/* Apply Orbitron font to headings only */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron'; /* Use Orbitron font for headings */
+}
+
+/* Apply the Fantasma font to ForumPosts content and ForumTopics content */
+ul.forum-posts-list li,
+ul.forum-topics-list li {
+    font-family: 'Fantasma'; /* Use the Fantasma font */
+    font-size: 22px !important; /* Increase font size with higher specificity */
+    line-height: 1.5; /* Adjust line height for better readability */
+}
+
+/* Wrapper to control the full content */
+.content-wrapper {
+    width: 100%; /* Full width */
+    overflow-y: auto; /* Vertical scrollbar for the entire content */
+    display: flex;
+    justify-content: center; /* Center content horizontally */
+    align-items: flex-start; /* Align content to the top */
+}
+
+/* Centered Box for DAOs List, Members List, Forum Topics List and Forum Posts  */
+.centered-box {
+    width: 80%; /* Adjust width as necessary */
+    max-width: 800px; /* Optional max-width for better layout control */
+    max-height: 430px; /* Adjust height as necessary */
+    background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background for better visibility */
+    padding: 20px; /* Add padding inside the box */
+    border-radius: 10px; /* Rounded corners for the box */
+    margin-top: 20px; /* Space above the box */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Add shadow for better visual effect */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Unified Fancy Styling for ALL Lists: dao-list, members-list, forum-topics-list, forum-posts-list */
+
+ul.dao-list,
+ul.forum-topics-list,
+ul.members-list,
+ul.forum-posts-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+ul.dao-list li,
+ul.forum-topics-list li,
+ul.members-list li,
+ul.forum-posts-list li {
+    margin-bottom: 50px !important; /* Large spacing between items */
+    padding: 15px; /* Spacious padding */
+    background-color: rgba(0, 0, 0, 0.8); /* Dark background to match forum_topic_detail */
+    border: 1px solid #444; /* Subtle dark border */
+    border-radius: 5px; /* Rounded corners */
+    position: relative;
+ 
+    color: #f1f1f1;
+    font-size: 16px;
+    text-align: left;
+    transition: background-color 0.3s ease, box-shadow 0.2s ease;
+}
+
+/* Gradient border for ALL lists */
+ul.dao-list li::after,
+ul.forum-topics-list li::after,
+ul.members-list li::after,
+ul.forum-posts-list li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 5px;
+    border-style: solid;
+    border-width: 0 1px 1px 0;
+    border-image: linear-gradient(135deg, #ff6400, #00aaff) 1;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* Hover effect for ALL lists: fancy glow and tint */
+ul.dao-list li:hover,
+ul.forum-topics-list li:hover,
+ul.members-list li:hover,
+ul.forum-posts-list li:hover {
+    background-color: rgba(0, 170, 255, 0.1); /* Ice blue tint */
+    box-shadow:
+        0 0 15px rgba(0, 170, 255, 0.3),
+        inset 0 0 20px rgba(0, 170, 255, 0.5); /* Fancy glow */
+}
+
+/* Unified link styling */
+ul.dao-list li a,
+ul.forum-topics-list li a,
+ul.members-list li a,
+ul.forum-posts-list li a {
+    color: #00aaff; /* Ice Blue links */
+    font-weight: bold;
+    text-decoration: none;
+}
+
+
+/* Text and button styling */
+ul.forum-posts-list li a {
+    color: #00aaff; /* Ice Blue for links */
+    font-weight: bold; /* Emphasize links */
+}
+
+ul.forum-posts-list li button {
+    background-color: rgba(255, 100, 0, 0.15); /* Light Blood Orange tint */
+    border: 1px solid #ff6400; /* Blood Orange border */
+    color: #ff6400; /* Blood Orange text color */
+    border-radius: 5px; /* Rounded corners */
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+ul.forum-posts-list li button:hover {
+    background-color: rgba(0, 170, 255, 0.2); /* Light Ice Blue on hover */
+    color: #ffffff; /* White text for contrast */
+    box-shadow: 0 0 10px rgba(0, 170, 255, 0.3); /* Soft outer ice blue glow */
+}
+
+ul.forum-posts-list li {
+    margin: 10px 0; /* Reduce as necessary */
+    padding-top: 0; /* Remove any additional padding */
+}
+
+/* Position the time element in the top right corner */
+ul.forum-posts-list li .post-time {
+    top: 10px; /* Adjust as needed */
+    right: 15px; /* Adjust as needed */
+    font-size: 0.85em;
+    color: #e0e0e0; /* Light gray text for readability */
+    opacity: 0.8;
+    z-index: 1; /* Ensure it stays on top */
+}
+
+/* Styles for post actions (Likes, Replies, View More button) */
+.post-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Optional: centers items vertically */
+    margin-top: 10px; /* Space above the actions */
+}
+
+/* Flexbox for post header to align author/role and time */
+.post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px; /* Space below the header */
+    padding: 5px 0; /* Vertical padding inside the header */
+    margin-top: 10px; /* Add this line */
+}
+
+/* Style for author and role container */
+.author-role {
+    font-size: 1em; /* Adjust font size as needed */
+    color: #e0e0e0; /* Color for readability */
+}
+
+/* Position the time to the far right, aligned with author and role */
+.post-time {
+    font-size: 0.85em;
+    color: #e0e0e0;
+    opacity: 0.8;
+    white-space: nowrap; /* Prevents time from wrapping */
+}
+
+/* Define the Orbitron font */
+@font-face {
+    font-family: 'Orbitron';
+    src: url("/static/fonts/Orbitron/Orbitron-Black.2e6f175c43c7.ttf") format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+/* Page-specific class for dao_detail page */
+.dao-detail-page {
+    font-family: 'Orbitron', sans-serif;
+}
+
+/* Optional: Additional styles specific to dao_detail page */
+.dao-detail-page h1,
+.dao-detail-page h2,
+.dao-detail-page h3,
+.dao-detail-page h4,
+.dao-detail-page h5,
+.dao-detail-page h6,
+.dao-detail-page .author-role,
+.dao-detail-page .dao-name {
+    font-family: 'Orbitron', sans-serif;
+}
+
+/* Search Container Styles */
+.search-container {
+    position: fixed; /* Fix the search bar at the top */
+    top: 20px; /* Adjust top to align with the background */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Center horizontally */
+    width: auto; /* Auto width to fit content */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Center the items vertically */
+    padding: 0; /* Remove padding for better alignment */
+    z-index: 101; /* Ensure it's above other content, higher than .bottom-nav */
+}
+
+/* Search Bar Styles */
+.search-bar {
+    width: 400px; /* Set a fixed width */
+    height: 40px; /* Adjust height to fit the design */
+    padding: 0 45px 0 15px; /* Extra right padding for A button */
+    font-size: 16px;
+    border: none; /* Remove the default border */
+    border-radius: 25px; /* Rounded corners for a pill shape */
+    outline: none;
+    color: white; /* Text color inside the search bar */
+    text-align: center; /* Center the placeholder text */
+    box-sizing: border-box; /* Include padding in the height calculation */
+    background-color: rgb(0, 0, 0); /* Black background inside the search bar */
+
+    /* Subtle outline effect */
+    box-shadow: 
+        0 0 4px rgba(255, 255, 255, 0.15), /* Softer outer glow */
+        inset 0 0 4px rgba(255, 255, 255, 0.1); /* Subtle inner shadow for depth */
+}
+
+/* Search Button Styles */
+.search-button {
+    height: 40px; /* Match the height of the search bar */
+    padding: 0 20px; /* Add padding for better click area */
+    border: none; /* Remove the default border */
+    border-radius: 0 25px 25px 0; /* Rounded corners for the right side */
+    background-color: #333; /* Background color for the button */
+    color: white; /* Text color for the button */
+    font-size: 16px; /* Font size for the button text */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    display: flex; /* Flex display for centering */
+    align-items: center; /* Center items vertically */
+    justify-content: center; /* Center items horizontally */
+    outline: none;
+}
+
+.search-button:hover {
+    background-color: #555; /* Slightly darker on hover */
+}
+
+/* Advanced Search Button Styles */
+.advanced-search-button {
+    position: absolute; /* Place inside search bar */
+    right: 10px; /* Keep close to the right edge */
+    top: 50%; /* Center vertically */
+    transform: translateY(-50%); /* Align perfectly in the center */
+    height: 30px; /* Smaller height to fit within */
+    width: 30px; /* Make it circular */
+    border: none; /* Remove the default border */
+    border-radius: 50%; /* Circular button */
+    background-color: #555; /* Background color for the button */
+    color: white; /* Text color for the button */
+    font-size: 16px; /* Font size for the button text */
+    cursor: pointer; /* Change cursor to pointer on hover */
+    outline: none;
+    z-index: 102; /* Ensure it's above other elements */
+}
+
+.advanced-search-button:hover {
+    background-color: #777; /* Slightly darker on hover */
+}
+
+/* Advanced Search Container Styles */
+.advanced-search-container {
+    display: none; /* Hide by default */
+    flex-direction: column; /* Arrange items in a column */
+    align-items: center; /* Center the items */
+    padding: 10px;
+    background-color: #222; /* Dark background for contrast */
+    border-radius: 10px; /* Rounded corners */
+    margin-top: 10px; /* Space above the advanced search container */
+    width: 280px; /* Compact width for a more aesthetic look */
+    position: absolute; /* Position below the search bar */
+    top: 60px; /* Position it directly below the search bar */
+    left: 50%; /* Center align with the search bar */
+    transform: translateX(-50%); /* Center horizontally */
+    box-sizing: border-box; /* Include padding and border in the width */
+    z-index: 100; /* Ensure it sits above other content */
+}
+
+.advanced-search-container label {
+    margin: 5px 0; /* Space between labels and inputs */
+    color: white; /* Text color to match the theme */
+}
+
+.advanced-search-container select,
+.advanced-search-container input[type="date"] {
+    margin: 5px 0; /* Space between inputs */
+    padding: 5px;
+    border: 1px solid #333;
+    border-radius: 5px;
+    background-color: black; /* Match the body background */
+    color: white; /* Text color to match the theme */
+    outline: none;
+}
+
+/* Bottom Navigation Bar Styles */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 100px; /* Adjust height if necessary */
+    background-color: transparent; /* Keep background transparent */
+    color: white;
+    display: flex;
+    justify-content: space-between; /* Space items evenly */
+    align-items: flex-end; /* Align items to the bottom */
+    padding: 0 20px; /* Add padding for spacing */
+    box-sizing: border-box; /* Ensure padding is included in the width calculation */
+    z-index: 100; /* Ensure nav bar is above other content */
+    pointer-events: none; /* Allow clicks to pass through to the nav items */
+}
+
+.nav-item {
+    width: 150px; /* Set a fixed width for the buttons */
+    height: 50px; /* Set a fixed height for the buttons */
+    text-decoration: none;
+    color: white;
+    font-size: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    border: none; /* Remove default border */
+    outline: none;
+    cursor: pointer; /* Change cursor to pointer on hover */
+    box-sizing: border-box; /* Ensure padding is included in the height calculation */
+    pointer-events: auto; /* Enable pointer events on nav items */
+    position: absolute; /* Use absolute positioning */
+}
+
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Slight color change on hover */
+}
+
+.nav-item.active, .nav-item:active {
+    background-color: rgba(255, 255, 255, 0.2); /* Different background for active/highlighted item */
+    color: #fff; /* Adjust text color if needed */
+}
+
+/* Specific Positioning for Each Nav Item */
+.nav-home {
+    left: 10%; /* Adjust percentage as needed */
+    bottom: 30%; /* Adjust bottom percentage for height */
+}
+
+.nav-marketplace {
+    right: 30%; /* Adjust percentage as needed */
+    bottom: 10%; /* Adjust bottom percentage for height */
+}
+
+.nav-daos {
+    left: 20%; /* Adjust percentage as needed */
+    bottom: 20%; /* Adjust bottom percentage for height */
+}
+
+.nav-events {
+    right: 20%; /* Adjust percentage as needed */
+    bottom: 20%; /* Adjust bottom percentage for height */
+}
+
+.nav-trending {
+    left: 30%; /* Adjust percentage as needed */
+    bottom: 10%; /* Adjust bottom percentage for height */
+}
+
+.nav-job-board {
+    right: 30%; /* Adjust percentage as needed */
+    bottom: 10%; /* Adjust bottom percentage for height */
+}
+
+/* Main content styles to prevent overlap with the bottom navigation bar */
+.main-content {
+    padding-bottom: 150px; /* Ensure sufficient space for the nav bar */
+}
+
+/* MetaMask Login Button Styles */
+.metamask-login {
+    margin-top: 20px; /* Adds space above the MetaMask login button */
+    text-align: center; /* Centers the button in the div */
+    padding-bottom: 20px; /* Adds space below the button */
+}
+
+/* Adjusts the button styling to fit the dark theme */
+#loginButton {
+    padding: 10px 20px;
+    font-size: 16px;
+    color: white;
+    background-color: #000000; /* Dark grey background */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer; /* Makes the mouse cursor a pointer when hovered over the button */
+}
+
+#loginButton:hover {
+    background-color: #000000; /* Slightly darker on hover for better interaction feedback */
+}
+
+/* Logo Styles */
+.logo-container {
+    position: fixed;
+    top: 10px; /* Adjust the distance from the top */
+    left: 10px; /* Adjust the distance from the left */
+    width: 100px; /* Set the width of the logo */
+    z-index: 102; /* Ensure it is above other content */
+}
+
+.logo-container img {
+    width: 100%; /* Ensure the image takes the full width of the container */
+    height: auto; /* Maintain aspect ratio */
+}
+
+.dao-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-left: 60px; /* Slightly more padding to accommodate the number */
+}
+
+.dao-number {
+    position: absolute;
+    left: -20px; /* Move the number further left */
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.dao-logo {
+    width: 40px; /* Adjust the width as needed */
+    height: 40px; /* Ensure consistent height */
+    object-fit: cover; /* Keeps the aspect ratio */
+    border-radius: 10px; /* Optional: Adds rounded corners */
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Mobile Specific Styles */
+
+/* First Mobile Media Query */
+@media screen and (max-width: 768px) {
+    /* Prevent Horizontal Overflow */
+    body {
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+        width: 100%; /* Ensure body occupies full viewport width */
+        background-image: none; /* Remove background image on mobile */
+    }
+
+    .logo-container {
+        top: 5px;
+        left: 5px;
+        width: 60px;
+        max-width: 100%; /* Prevent overflow */
+    }
+  
+    .logo-container img {
+        width: 100%;
+        height: auto;
+    }
+}
+
+/* Second Mobile Media Query */
+@media screen and (max-width: 768px) {
+    /* Prevent Horizontal Overflow */
+    body {
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+        width: 100%; /* Ensure body occupies full viewport width */
+        background-image: none; /* Remove background image on mobile */
+    }
+
+    /* Logo Container Styles */
+    .logo-container {
+        top: 5px;
+        left: 5px;
+        width: 60px;
+        max-width: 100%; /* Prevent overflow */
+    }
+  
+    .logo-container img {
+        width: 100%;
+        height: auto;
+    }
+  
+/* Search Container Styles */
+.search-container {
+    position: fixed; /* Fix the search bar at the top */
+    top: 60px !important; /* Adjust top to align with the background */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Center horizontally */
+    width: auto; /* Auto width to fit content */
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Center the items vertically */
+    padding: 0; /* Remove padding for better alignment */
+    z-index: 104; /* Ensure it's above metamask-login */
+}
+
+/* Pill-Shaped Search Bar */
+.search-bar {
+    width: 400px; /* Set a fixed width */
+    height: 40px; /* Adjust height to fit the design */
+    padding: 0 45px 0 15px; /* Extra right padding for the button */
+    font-size: 16px;
+    border: 1px solid black; /* Solid black border */
+    border-radius: 25px; /* Rounded corners for a pill shape */
+    outline: none;
+    color: white; /* Text color inside the search bar */
+    text-align: center; /* Center the placeholder text */
+    box-sizing: border-box; /* Include padding in the height calculation */
+    background-color: rgb(0, 0, 0); /* Solid black background */
+    
+    /* Subtle outline effect */
+    box-shadow: 
+        0 0 4px rgba(0, 0, 0, 0.15), /* Softer outer glow */
+        inset 0 0 4px rgba(0, 0, 0, 0.1); /* Subtle inner shadow for depth */
+    
+    background-size: 20px 20px; /* Icon size */
+    background-repeat: no-repeat;
+    background-position: 10px center; /* Position the icon inside the search bar */
+    transition: background-color 0.3s ease; /* Smooth transition on hover/focus */
+}
+
+/* Search Bar Hover and Focus States */
+.search-bar:hover,
+.search-bar:focus {
+    background-color: rgba(0, 0, 0, 0.8); /* Darker on hover/focus */
+}
+
+/* Magnifying Glass as Search Button */
+.search-button {
+    width: 30px;
+    height: 40px; /* Match the height of the search bar */
+    background: none;
+    border: none;
+    background-size: 20px 20px;
+    background-repeat: no-repeat;
+    background-position: center;
+    cursor: pointer;
+    outline: none;
+    margin-left: -5px; /* Move the button 5px to the left */
+}
+
+.search-button:hover {
+    opacity: 0.8; /* Slight opacity change on hover */
+}
+
+/* Advanced Search Button Styles */
+.advanced-search-button {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 14px;
+    transform: translateX(-40px) translateY(-15px); /* Move 40px left and 10px up */
+    transition: transform 0.3s ease;
+    display: flex;               /* Ensure proper alignment */
+    align-items: center;         /* Vertically center the button content */
+}
+
+
+
+/* Adjust "Login with MetaMask" Button Position */
+.metamask-login {
+    position: fixed; /* Ensure it stays in a fixed position */
+    top: 10px !important; /* Adjust to prevent overlap */
+    right: 20px; /* Keep it consistent */
+    width: auto; /* Let the container adapt to content size */
+    min-width: 100px; /* Ensure sufficient minimum width */
+    z-index: 103; /* Ensure it's below search-container */
+    max-width: 100%; /* Prevent overflow */
+}
+
+/* Style the MetaMask Login Button for Better Mobile Appearance */
+.metamask-login button {
+    width: auto; /* Adapt to text content */
+    min-width: 60px !important;
+    height: auto !important; /* Corrected from -10px */
+    font-size: 9px !important; /* Smaller font size for mobile screens */
+    padding: 3px 5px; /* Adjust padding for better fit */
+    border-radius: 5px; /* Rounded corners for aesthetics */
+    box-sizing: border-box; /* Include padding in width */
+    white-space: nowrap; /* Prevent text from wrapping */
+    overflow: hidden; /* Hide any overflowing text */
+    text-overflow: ellipsis; /* Add ellipsis if text is too long */
+    
+    /* Add these lines to move the button up */
+    transform: translateY(-10px); /* Move 10px upwards */
+    transition: transform 0.3s ease; /* Smooth transition */
+}
+
+
+    
+}
+
+/* Third Mobile Media Query */
+@media screen and (max-width: 768px) {
+    /* Prevent Horizontal Overflow */
+    body {
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+        width: 100%; /* Ensure body occupies full viewport width */
+        background-image: none; /* Remove background image on mobile */
+    }
+
+    /* Remove the background image on mobile */
+    body {
+        background-image: none;
+    }
+
+    .bottom-nav {
+        height: 60px;
+        max-width: 100%; /* Prevent overflow */
+        z-index: 104; /* Ensure it's above content but below login button */
+    }
+  
+    .nav-item {
+        width: 40px;
+        height: 40px;
+        font-size: 10px;
+        background-size: contain;
+        max-width: 100%; /* Prevent overflow */
+    }
+  
+    /* Adjust positioning of nav items */
+    .nav-home {
+        display: none; /* Hide Home button on mobile */
+    }
+
+    .nav-job-board {
+        display: none; /* Hide Job Board button on mobile */
+    }
+    .nav-marketplace { right: 15%; bottom: 5%; }
+    .nav-daos { left: 12%; bottom: 5%; }
+    .nav-events { right: 38%; bottom: 5%; }
+    .nav-trending { left: 30%; bottom: 5%; }
+
+
+        
+
+    /* Ensure No Elements Cause Overflow on Mobile */
+    .content-wrapper > * {
+        max-width: 100%;
+        overflow-wrap: break-word;
+    }
+}
+
+
+/* Specific Adjustments for claim_contributor_card.html */
+
+/* Mobile Specific Styles for claim_contributor_card.html */
+@media screen and (max-width: 768px) {
+    /* Controls Container Adjustments */
+    .controls {
+        flex-direction: column; /* Stack controls vertically */
+        align-items: stretch;   /* Make controls take full width */
+        margin-top: 20px;       /* Reduce margin for better fit */
+    }
+
+    /* Control Buttons and Inputs Adjustments */
+    #flip-card,
+    #download-model,
+    #imageUpload,
+    #rotationSlider {
+        width: 100%;           /* Full width buttons and inputs */
+        margin-bottom: 10px;   /* Space between elements */
+        font-size: 14px;       /* Adjust font size for readability */
+        transform: none;       /* Remove any transforms that push elements out */
+    }
+
+    /* Additional Margin for Rotation Slider */
+    #rotationSlider {
+        margin-bottom: 15px;   /* Space below the slider */
+    }
+
+    /* Adjusting 3D Container Height */
+    #3d-container {
+        height: 300px;          /* Reduce height for mobile */
+    }
+}
+
+
+@media screen and (max-width: 768px) {
+    /* ... existing styles ... */
+  
+    /* Advanced Search Container Styles */
+    .advanced-search-container {
+      position: absolute;
+      top: 100px; /* Adjust this value to move it further down */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 400px;
+      background-color: rgb(0, 0, 0);
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      z-index: 105; /* Ensure it's above other elements */
+    }
+  
+    .advanced-search-container label,
+    .advanced-search-container select,
+    .advanced-search-container input {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+  
+    /* ... other existing styles ... */
+  }
+  
+
+
+
+
+
+
+  @media screen and (max-width: 768px) {
+    /* Prevent overall horizontal scrolling */
+    body, .content-wrapper {
+        overflow-x: hidden !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ONLY remove contributor address on the contributor_cards_marketplace page */
+    .contributor-cards-marketplace .dao-metrics > div:nth-child(1) {
+        display: none !important;
+    }
+
+    /* Stack each card neatly so the Buy button is visible */
+    .dao-item {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important; 
+        margin-bottom: 15px !important;
+    }
+
+    /* Make the 'Buy' button neatly displayed */
+    .buy-button {
+        display: inline-block !important;
+        margin: 0 !important;
+        padding: 6px 12px !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+
+    /* === Make top two buttons the same size despite different text === */
+    .button-container {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: stretch !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        margin: 20px auto !important;
+        max-width: 100% !important;
+    }
+    .btn-link {
+        /* Each button ~45% of the row width */
+        flex: 0 0 45% !important;
+        box-sizing: border-box !important;
+
+        /* Force same height by letting text wrap */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        white-space: normal !important;
+
+        font-size: 11px !important;
+        padding: 8px !important;
+    }
+}

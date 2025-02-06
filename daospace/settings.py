@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import json
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -19,6 +20,40 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
 load_dotenv(BASE_DIR / '.env')
+
+# Pinata API credentials
+PINATA_API_KEY = os.getenv('PINATA_API_KEY')
+PINATA_API_SECRET = os.getenv('PINATA_API_SECRET')
+PINATA_JWT = os.getenv('PINATA_JWT')
+
+# Blockchain Configuration
+BLOCKCHAIN_NETWORKS = {
+    "RARI_CHAIN_MAINNET": {
+        "name": "RARI Chain Mainnet",
+        "rpc_url": "https://mainnet.rpc.rarichain.org/http",
+        "chain_id": 1380012617,
+        "currency_symbol": "ETH",
+        "block_explorer_url": "",  # Optional
+    }
+}
+
+# Function to load ABI from a JSON file
+def load_abi(file_name):
+    abi_path = BASE_DIR / 'smartcontracts' / file_name
+    with open(abi_path, 'r') as file:
+        return json.load(file)
+
+# Smart Contract Details
+CONTRACTS = {
+    "ContributorCardsABI": {
+        "address": "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277",
+        "abi": load_abi("ContributorCardsABI.json"),
+    },
+}
+
+# Default Network for the Application
+DEFAULT_NETWORK = "RARI_CHAIN_MAINNET"
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/

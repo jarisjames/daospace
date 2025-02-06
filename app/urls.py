@@ -16,7 +16,10 @@ from .views import (
     link_forum_data,
     custom_view_dispatcher,
     claim_contributor_card,
+    contributor_cards_marketplace,
+    cc_secondary_marketplace,  
     dao_feed,  # Ensure dao_feed is imported
+    
 )
 
 urlpatterns = [
@@ -26,6 +29,8 @@ urlpatterns = [
     path('daos/', daos_view, name='daos'),
     path('verify_signature/', verify_signature, name='verify_signature'),
     path('claim-1st-edition-contributor-card/', claim_contributor_card, name='claim_contributor_card'),
+    path('contributorcards/', contributor_cards_marketplace, name='contributor_cards_marketplace'),  # Add new URL
+    path('cc-secondary-marketplace/', cc_secondary_marketplace, name='cc_secondary_marketplace'),
     path('feed/', dao_feed, name='dao_feed'),  # General feed without dao_name
     path('<str:dao_name>/feed/', dao_feed, name='dao_feed_by_dao'),  # DAO-specific feed
     path('<str:account>/link_forum_data/', link_forum_data, name='link_forum_data'),

@@ -1,0 +1,936 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contributor Cards Marketplace - daospace</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+
+    <style>
+      /* Overlay: partially transparent black */
+      .model-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9998;
+      }
+      .model-overlay.active {
+        display: flex;
+      }
+
+      .model-overlay-content {
+        position: relative;
+        max-width: 90vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        overflow: visible;
+      }
+
+      /* The big model-viewer with transparent background */
+      #bigModelViewer {
+        width: 80vw;
+        height: 80vh;
+        background: transparent;
+        disable-zoom: true;
+        field-of-view: 50deg;
+        --poster-color: transparent;
+      }
+
+      .model-overlay-close {
+        font-size: 24px;
+        margin-bottom: 5px;
+        margin-right: 5px;
+        background: transparent;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        z-index: 10000;
+      }
+
+      /* Vertical Slider */
+      .zoom-slider-container {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+        z-index: 10001;
+      }
+
+      #zoomSlider {
+        writing-mode: bt-lr;
+        -webkit-appearance: slider-vertical;
+        width: 8px;
+        height: 200px;
+        background: #444;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #zoomSlider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      #zoomSlider::-moz-range-thumb,
+      #zoomSlider::-ms-thumb {
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+    </style>
+</head>
+<body>
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    
+
+    <div class="content-wrapper">
+        <div class="centered-box">
+            <h2>Contributor Cards Marketplace</h2>
+            <ul class="dao-list">
+
+              <div class="button-container">
+                <a href="{% url 'cc_secondary_marketplace' %}" class="btn-link">Secondary Marketplace</a>
+                <a href="{% url 'claim_contributor_card' %}" class="btn-link">Claim Your Contributor Card (RARI Foundation Only)</a>
+            </div>
+            
+            <style>
+                .button-container {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    margin-top: 40px; /* Adjusted margin for spacing */
+                    gap: 15px;
+                }
+            
+                .btn-link {
+                    display: inline-block;
+                    padding: 8px 16px;
+                    font-size: 12.5px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: #ff6600; /* Warm gradient-inspired color */
+                    text-decoration: none;
+                    border: 2px solid #ff6600;
+                    border-radius: 6px;
+                    background: rgba(0, 0, 0, 0.8);
+                    transition: all 0.3s ease-in-out;
+                    box-shadow: 0 0 6px rgba(255, 102, 0, 0.6), 0 0 12px rgba(255, 102, 0, 0.3);
+                }
+            
+                .btn-link:hover {
+                    background: linear-gradient(45deg, #ff6600, #ffcc00); /* Gradient inspired by logo */
+                    color: #000;
+                    box-shadow: 0 0 12px rgba(255, 102, 0, 0.9), 0 0 24px rgba(255, 204, 0, 0.6);
+                }
+            </style>
+<br>            
+
+                {% for card in contributor_cards %}
+                <li class="dao-item">
+                    <div class="dao-number">
+                        <span>{{ forloop.counter }}.</span>
+                    </div>
+                    <div class="dao-header">
+                        <!-- Clickable model -->
+                        <model-viewer
+                            class="mini-model"
+                            src="{{ card.animation_url }}"
+                            camera-controls
+                            auto-rotate
+                            style="width: 100px; height: 100px; cursor: pointer;"
+                            alt="Contributor Card Preview">
+                        </model-viewer>
+                        <!-- "Click to Enlarge" hint -->
+                        <div class="enlarge-hint">Click to Enlarge</div>
+
+                        <div class="dao-metrics">
+                          <div>Contributor: {{ card.contributor_name }}</div>
+                          <div>Contributor Address: {{ card.contributor_address|slice:":6" }}...{{ card.contributor_address|slice:"-4:" }}</div>
+                          <div>Token ID: {{ card.token_id }}</div>
+                          <!-- We'll dynamically replace "Loading remaining supply..." below -->
+                          <div class="remaining-supply" 
+                              data-token-id="{{ card.token_id }}"
+                              data-metadata-uri="{{ card.metadata_uri }}"> 
+                              Loading remaining supply...
+                          </div>
+                          <div>Price: {{ card.price }}</div>
+                      </div>
+                    </div>
+                  <!-- Buy Button (Anchored to the Right & Bottom) -->
+                  <button
+                      class="buy-button"
+                      style="margin-left: auto; align-self: flex-end;"
+                      data-token-id="{{ card.token_id }}"
+                      data-price="{{ card.price }}"
+                      data-contributor="{{ card.contributor_address }}">
+                      Buy
+                  </button>
+                </li>
+                {% empty %}
+                <li class="dao-item">No Contributor Cards available for sale.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
+            <a href="{% url 'contributor_cards_marketplace' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+        </div>
+    </nav>
+
+    <!-- Fullscreen Overlay for big model (with new slider-based zoom) -->
+    <div id="modelOverlay" class="model-overlay">
+        <div class="model-overlay-content">
+            <!-- Vertical slider for zoom -->
+            <div class="zoom-slider-container">
+                <input type="range" id="zoomSlider" min="10" max="50" step="1" value="50" orient="vertical">
+            </div>
+            <!-- Close button -->
+            <button class="model-overlay-close" id="modelOverlayClose">&times;</button>
+            
+            <!-- Big model-viewer with transparent background & partial overlay -->
+            <model-viewer
+                id="bigModelViewer"
+                camera-controls
+                auto-rotate
+                enable-pan
+                disable-zoom
+                alt="Full-screen Model Viewer">
+            </model-viewer>
+        </div>
+    </div>
+
+    <!-- Model Viewer Script -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+    <!-- Load web3.js from a CDN (latest 1.x version) -->
+    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.7.5/dist/web3.min.js"></script>
+
+    <!-- Embed the full ABI right here -->
+    <script>
+    const contributorCardsAbi = [
+      {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "internalType": "bool",
+            "name": "approved",
+            "type": "bool"
+          }
+        ],
+        "name": "ApprovalForAll",
+        "type": "event"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "quantity",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "ipfsMetadataUri",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "contributor",
+            "type": "address"
+          }
+        ],
+        "name": "lazyMint",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "previousOwner",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "newOwner",
+            "type": "address"
+          }
+        ],
+        "name": "OwnershipTransferred",
+        "type": "event"
+      },
+      {
+        "inputs": [],
+        "name": "renounceOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "ids",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "amounts",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "name": "safeBatchTransferFrom",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "name": "safeTransferFrom",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "approved",
+            "type": "bool"
+          }
+        ],
+        "name": "setApprovalForAll",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "internalType": "uint256[]",
+            "name": "ids",
+            "type": "uint256[]"
+          },
+          {
+            "indexed": false,
+            "internalType": "uint256[]",
+            "name": "values",
+            "type": "uint256[]"
+          }
+        ],
+        "name": "TransferBatch",
+        "type": "event"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "newOwner",
+            "type": "address"
+          }
+        ],
+        "name": "transferOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "indexed": false,
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "TransferSingle",
+        "type": "event"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": false,
+            "internalType": "string",
+            "name": "value",
+            "type": "string"
+          },
+          {
+            "indexed": true,
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          }
+        ],
+        "name": "URI",
+        "type": "event"
+      },
+      {
+        "inputs": [],
+        "name": "withdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address[]",
+            "name": "accounts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "ids",
+            "type": "uint256[]"
+          }
+        ],
+        "name": "balanceOfBatch",
+        "outputs": [
+          {
+            "internalType": "uint256[]",
+            "name": "",
+            "type": "uint256[]"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ],
+        "name": "getMintedCount",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "operator",
+            "type": "address"
+          }
+        ],
+        "name": "isApprovedForAll",
+        "outputs": [
+          {
+            "internalType": "bool",
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "LAZY_MINT_PRICE",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "MAX_SUPPLY_PER_TOKEN",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "name",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "_tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "_salePrice",
+            "type": "uint256"
+          }
+        ],
+        "name": "royaltyInfo",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes4",
+            "name": "interfaceId",
+            "type": "bytes4"
+          }
+        ],
+        "name": "supportsInterface",
+        "outputs": [
+          {
+            "internalType": "bool",
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "symbol",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ],
+        "name": "uri",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ];
+    </script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+          console.log("Marketplace script loaded!");
+
+          const contractAddress = "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277";
+          const abi = contributorCardsAbi; 
+          const MAX_SUPPLY = 100; // Static max supply from the contract
+
+          // Providers
+          const rpcUrl = "https://mainnet.rpc.rarichain.org/http";
+          const wsRpcUrl = "wss://mainnet.rpc.rarichain.org/ws";
+
+          // Initialize Web3
+          let web3;
+          let contract;
+
+          // Check if user has a wallet
+          if (typeof window.ethereum !== "undefined") {
+              // User has a wallet, use it as the provider
+              web3 = new Web3(window.ethereum);
+              try {
+                  // Request account access if needed
+                  await window.ethereum.request({ method: 'eth_requestAccounts' });
+                  contract = new web3.eth.Contract(abi, contractAddress);
+                  console.log("Connected using window.ethereum");
+              } catch (error) {
+                  console.error("User denied account access or error occurred:", error);
+                  // Fallback to read-only provider
+                  const readOnlyProvider = new Web3.providers.HttpProvider(rpcUrl);
+                  web3 = new Web3(readOnlyProvider);
+                  contract = new web3.eth.Contract(abi, contractAddress);
+                  console.log("Connected using read-only provider due to error");
+              }
+          } else {
+              // Fallback to RARI Chain RPC for read-only operations
+              const readOnlyProvider = new Web3.providers.HttpProvider(rpcUrl);
+              web3 = new Web3(readOnlyProvider);
+              contract = new web3.eth.Contract(abi, contractAddress);
+              console.log("Connected using read-only provider");
+          }
+
+          // ======================
+          // Fetch minted count via getMintedCount (public function)
+          // ======================
+          async function getMintedCount(tokenId) {
+              try {
+                  // Use getMintedCount(tokenId) instead of _tokenData(tokenId).
+                  const minted = await contract.methods.getMintedCount(tokenId).call();
+                  return minted;
+              } catch (err) {
+                  console.error(`Error fetching minted count for token ID ${tokenId}:`, err);
+                  return null;
+              }
+          }
+
+          // ======================
+          // Update displayed remaining supply
+          // ======================
+          async function updateRemainingSupply() {
+              const cards = document.querySelectorAll(".remaining-supply");
+              for (const card of cards) {
+                  const tokenId = card.getAttribute("data-token-id");
+                  const minted = await getMintedCount(tokenId);
+
+                  if (minted !== null) {
+                      const remainingSupply = MAX_SUPPLY - minted;
+                      card.textContent = `${remainingSupply} remaining`;
+                  } else {
+                      card.textContent = "Error fetching supply";
+                  }
+              }
+          }
+
+          await updateRemainingSupply();
+
+          // ======================
+          // LazyMint (Buy) function
+          // ======================
+          const handleBuy = async (tokenId, priceEth, contributorAddress) => {
+              if (!window.ethereum) {
+                  alert("Please install a Web3 wallet like MetaMask to perform this action.");
+                  return;
+              }
+
+              try {
+                  const accounts = await web3.eth.getAccounts();
+                  if (accounts.length === 0) {
+                      alert("Please connect your wallet to perform this action.");
+                      return;
+                  }
+                  const account = accounts[0];
+
+                  const priceWei = web3.utils.toWei(priceEth.toString(), "ether");
+                  
+                  //  Correctly fetch metadata URI from the DOM
+                  const cardElement = document.querySelector(`.remaining-supply[data-token-id="${tokenId}"]`);
+                  const ipfsMetadataUri = cardElement ? cardElement.getAttribute("data-metadata-uri") : null;
+
+                  if (!ipfsMetadataUri) {
+                      alert("Error: Metadata URI not found for this token.");
+                      return;
+                  }
+                  
+                  const quantity = 1;
+
+                  const tx = contract.methods.lazyMint(
+                      tokenId,
+                      quantity,
+                      ipfsMetadataUri,
+                      contributorAddress
+                  );
+
+                  const gasEstimate = await tx.estimateGas({
+                    from: account,
+                    value: priceWei
+                });
+                
+                // Fetch the latest network gas price (which should match the "Market" setting in MetaMask)
+                const marketGasPrice = await web3.eth.getGasPrice();
+                
+                // Send transaction with network-determined "Market" gas price
+                const receipt = await tx.send({
+                    from: account,
+                    value: priceWei,
+                    gas: gasEstimate,
+                    gasPrice: marketGasPrice
+                });
+                
+
+                  alert(`Transaction confirmed! Tx Hash: ${receipt.transactionHash}`);
+                  console.log("Transaction Receipt:", receipt);
+
+                  // Refresh remaining supply
+                  await updateRemainingSupply();
+              } catch (err) {
+                  console.error("Transaction failed:", err);
+                  alert(`Transaction failed: ${err.message}`);
+              }
+          };
+
+          // Attach buy logic
+          document.querySelectorAll(".buy-button").forEach((button) => {
+              button.addEventListener("click", async () => {
+                  const tokenId = button.getAttribute("data-token-id");
+                  const price = parseFloat(button.getAttribute("data-price"));
+                  const contributorAddress = button.getAttribute("data-contributor");
+
+                  if (!tokenId || !contributorAddress) {
+                      alert("Missing token ID or contributor address.");
+                      return;
+                  }
+
+                  await handleBuy(tokenId, price, contributorAddress);
+              });
+          });
+
+          // ======================
+          // Overlay & Slider Zoom
+          // ======================
+          const overlay = document.getElementById("modelOverlay");
+          const overlayClose = document.getElementById("modelOverlayClose");
+          const bigModelViewer = document.getElementById("bigModelViewer");
+          const zoomSlider = document.getElementById("zoomSlider");
+          let currentFov = 50;
+
+          // Enlarge model on mini-model click
+          document.querySelectorAll(".mini-model").forEach((mini) => {
+              mini.addEventListener("click", () => {
+                  const src = mini.getAttribute("src");
+                  bigModelViewer.setAttribute("src", src);
+                  overlay.classList.add("active");
+              });
+          });
+
+          // Close overlay
+          overlayClose.addEventListener("click", () => {
+              overlay.classList.remove("active");
+              bigModelViewer.removeAttribute("src");
+          });
+
+          // Zoom slider logic
+          zoomSlider.addEventListener("input", (event) => {
+              currentFov = parseInt(event.target.value, 10);
+              bigModelViewer.setAttribute("field-of-view", `${currentFov}deg`);
+          });
+      });
+    </script>
+</body>
+</html>

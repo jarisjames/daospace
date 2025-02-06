@@ -7,6 +7,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile Page</title>
     <link rel="stylesheet" href="{% static 'css/home.css' %}">
+
+    <!-- Inline styles for the model overlay and vertical slider (same approach as in marketplace) -->
+    <style>
+      /* Overlay: partially transparent black */
+      .model-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9998;
+      }
+      .model-overlay.active {
+        display: flex;
+      }
+
+      .model-overlay-content {
+        position: relative;
+        max-width: 90vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        overflow: visible;
+      }
+
+      /* The big model-viewer with transparent background */
+      #bigModelViewer {
+        width: 80vw;
+        height: 80vh;
+        background: transparent;
+        disable-zoom: true;
+        field-of-view: 50deg;
+        --poster-color: transparent;
+      }
+
+      .model-overlay-close {
+        font-size: 24px;
+        margin-bottom: 5px;
+        margin-right: 5px;
+        background: transparent;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        z-index: 10000;
+      }
+
+      /* Vertical Slider */
+      .zoom-slider-container {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+        z-index: 10001;
+      }
+
+      #zoomSlider {
+        writing-mode: bt-lr;
+        -webkit-appearance: slider-vertical;
+        width: 8px;
+        height: 200px;
+        background: #444;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      #zoomSlider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      #zoomSlider::-moz-range-thumb,
+      #zoomSlider::-ms-thumb {
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      /* Simple styling for the IPFS list items */
+      .ipfs-card-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .ipfs-card-list li {
+        margin-bottom: 20px;
+      }
+      .mini-model {
+        cursor: pointer;
+      }
+      .enlarge-hint {
+        font-size: 12px;
+        color: #666;
+      }
+    </style>
 </head>
 <body>
 
@@ -19,6 +123,10 @@
 
     <div class="content-wrapper">
         
+        <!-- ========== Contributor Cards Button & Section Removed ========== -->
+        <!-- The Contributor Cards button and section have been removed as per the request -->
+        <!-- ========== END Contributor Cards Section Removal ========== -->
+
         <!-- Search Bar with Advanced Search Toggle -->
         <form method="get" action="{% url 'search' %}">
             <div class="search-container">
@@ -140,29 +248,44 @@
                     {% endfor %}
                 </ul>
             </div>
+
+            <!-- ========== IPFS-based Contributor Cards Section Removed ========== -->
+            <!-- The IPFS Contributor Cards section has been removed as per the request -->
+            <!-- ========== END IPFS-based Contributor Cards Section Removal ========== -->
+
         </div>
     </div>
 
     <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
         <div class="nav-row">
-    
             <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
             <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
         </div>
         <div class="nav-row">
-
             <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
-            <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+            <a href="{% url 'contributor_cards_marketplace' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
         </div>
     </nav>
 
+    <!-- ========== Scripts ========== -->
     <script src="{% static 'js/home.js' %}"></script>
     <script src="{% static 'js/login.js' %}"></script>
-         
+
     <script>
         const account = "{{ account }}"; // Pass the account variable to JavaScript
 
+        // Toggle advanced search fields
+        function toggleAdvancedSearch() {
+            const x = document.getElementById("advancedSearch");
+            if (x.style.display === "none" || x.style.display === "") {
+                x.style.display = "block";
+            } else {
+                x.style.display = "none";
+            }
+        }
+
+        // Toggle likes
         function toggleLikers(id) {
             const x = document.getElementById(id);
             if (x.style.display === "none") {
@@ -172,6 +295,7 @@
             }
         }
 
+        // Toggle replies
         function toggleReplies(id) {
             const x = document.getElementById(id);
             if (x.style.display === "none") {
@@ -181,6 +305,108 @@
             }
         }
     </script>
-    <script src="{% static 'js/profile.js' %}"></script>
+
+    <!-- ========== WEB3 + Minimal Contributor Cards (ERC-1155 Balances) Removed ========== -->
+    <!-- The Web3 and Contributor Cards scripts have been removed as the related sections are no longer present -->
+    <!-- ========== END WEB3 + Minimal Contributor Cards ========== -->
+
+    <!-- (1) Model Viewer Script -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+    <!-- (2) Overlay + Zoom logic (same as marketplace) -->
+    <script>
+      // Grab overlay elements
+      const overlay = document.createElement("div");
+      overlay.id = "modelOverlay";
+      overlay.className = "model-overlay";
+      overlay.innerHTML = `
+        <div class="model-overlay-content">
+            <div class="zoom-slider-container">
+                <input type="range" id="zoomSlider" min="10" max="50" step="1" value="50" orient="vertical">
+            </div>
+            <button class="model-overlay-close" id="modelOverlayClose">&times;</button>
+            <model-viewer
+                id="bigModelViewer"
+                camera-controls
+                auto-rotate
+                enable-pan
+                disable-zoom
+                alt="Full-screen Model Viewer">
+            </model-viewer>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      const bigModelViewer = document.getElementById("bigModelViewer");
+      const overlayClose = document.getElementById("modelOverlayClose");
+      const zoomSlider = document.getElementById("zoomSlider");
+      let currentFov = 50;
+
+      // Listen for click on any .mini-model to open overlay
+      document.addEventListener("click", (event) => {
+        if (event.target.matches(".mini-model")) {
+          const src = event.target.getAttribute("src");
+          bigModelViewer.setAttribute("src", src);
+          overlay.classList.add("active");
+        }
+      });
+
+      // Close overlay
+      overlayClose.addEventListener("click", () => {
+          overlay.classList.remove("active");
+          bigModelViewer.removeAttribute("src");
+      });
+
+      // Zoom slider logic
+      zoomSlider.addEventListener("input", (event) => {
+          currentFov = parseInt(event.target.value, 10);
+          bigModelViewer.setAttribute("field-of-view", `${currentFov}deg`);
+      });
+    </script>
+
+    <!-- (3) Intercept "Generate Verification Code" form to stay on same page -->
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const generateCodeForm = document.getElementById('generateCodeForm');
+      const uniqueCodeContainer = document.getElementById('uniqueCodeContainer');
+      const uniqueCodeElement = document.getElementById('uniqueCode');
+      const linkForumButton = document.getElementById('linkForumButton');
+
+      generateCodeForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); // Prevents full-page redirect
+        
+        const formData = new FormData(generateCodeForm);
+        const csrfToken = formData.get('csrfmiddlewaretoken');
+
+        try {
+          // Make an AJAX request to the same URL (action="")
+          const response = await fetch('', {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken,
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: formData
+          });
+
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+
+          const data = await response.json();
+          // Populate the UI with the returned code
+          uniqueCodeElement.textContent = data.unique_code || 'No code returned.';
+          uniqueCodeContainer.style.display = 'block';
+          linkForumButton.style.display = 'inline-block';
+
+        } catch (err) {
+          console.error('Error generating code:', err);
+          alert('Failed to generate verification code. See console for details.');
+        }
+      });
+    });
+    </script>
+
 </body>
 </html>

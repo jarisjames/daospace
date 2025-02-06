@@ -19,11 +19,14 @@
     <!-- Include GLTFExporter -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+
     <style>
+        /* Container background transparent for alpha screenshot capturing */
         #3d-container {
             display: flex;
             justify-content: center;
             align-items: center;
+            background: transparent;
         }
 
         .controls {
@@ -33,35 +36,24 @@
             margin-top: 30px;
         }
 
-        /* Define a common class for control buttons */
         .control-button {
-            /* Remove fixed width to allow dynamic sizing */
-            /* width: 60px; */ /* Commented out */
-            
-            /* Alternatively, set a minimum width to maintain consistency */
-            min-width: 100px; /* Adjust as needed */
-            
+            min-width: 100px; 
             height: 40px;
             border-radius: 5px;
             margin-right: 10px;
             font-size: 14px;
-            padding: 0 10px; /* Added horizontal padding */
+            padding: 0 10px;
             text-align: center;
-            /* Remove text overflow properties to allow text wrapping or full display */
             overflow: visible;
             white-space: normal;
             text-overflow: clip;
-            cursor: pointer; /* Add pointer cursor for better UX */
-            
-            /* Optional: Add background and border for better visibility */
-            background-color: #007BFF; /* Bootstrap primary color */
+            cursor: pointer;
+            background-color: #007BFF; 
             color: #fff;
             border: none;
         }
         
-        /* Optional: Style the "Choose File" input to match buttons */
         .control-button-file {
-            /* Reset default styling */
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
@@ -74,22 +66,29 @@
             font-size: 14px;
         }
         
-        /* Ensure input[type=range] aligns properly */
         #rotationSlider {
             width: 200px;
             margin-right: 10px;
-            /* Optional: Add some styling to match buttons */
         }
-        
 
         #imageUpload {
             margin-right: 10px;
         }
 
-        /* Styles for the rotation slider */
-        #rotationSlider {
-            width: 200px;
-            margin-right: 10px;
+        #loading-spinner {
+            display: none;
+            margin: auto;
+            border: 8px solid #f3f3f3; 
+            border-top: 8px solid #007BFF;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -102,21 +101,60 @@
         </a>
     </div>
 
-
-
-    
-
     <div class="content-wrapper">
         <!-- Centered Box for 3D Model -->
         <div class="centered-box">
+
+            <div class="button-container">
+                <a href="{% url 'contributor_cards_marketplace' %}" class="btn-link">Primary Marketplace</a>
+                <a href="{% url 'cc_secondary_marketplace' %}" class="btn-link">Secondary Marketplace</a>
+            </div>
+            
+            <style>
+                .button-container {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    margin-top: 40px; /* Adjusted margin for spacing */
+                    gap: 15px;
+                }
+            
+                .btn-link {
+                    display: inline-block;
+                    padding: 8px 16px;
+                    font-size: 8.5px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: #ff6600; /* Warm gradient-inspired color */
+                    text-decoration: none;
+                    border: 2px solid #ff6600;
+                    border-radius: 6px;
+                    background: rgba(0, 0, 0, 0.8);
+                    transition: all 0.3s ease-in-out;
+                    box-shadow: 0 0 6px rgba(255, 102, 0, 0.6), 0 0 12px rgba(255, 102, 0, 0.3);
+                }
+            
+                .btn-link:hover {
+                    background: linear-gradient(45deg, #ff6600, #ffcc00); /* Gradient inspired by logo */
+                    color: #000;
+                    box-shadow: 0 0 12px rgba(255, 102, 0, 0.9), 0 0 24px rgba(255, 204, 0, 0.6);
+                }
+            </style>
+<br>           
+
+
+
             <div id="3d-container" style="width: 100%; height: 600px;"></div>
             <div class="controls">
                 <!-- Controls -->
                 <button id="flip-card">Flip Card</button>
                 <input type="file" id="imageUpload" accept="image/*">
-                <!-- Rotation slider -->
                 <input type="range" id="rotationSlider" min="0" max="360" value="0">
                 <button id="download-model">Download</button>
+                <div id="loading-spinner"></div>
+                <button id="create-collection">Create Collection</button>
+            
             </div>
         </div>
     </div>
@@ -124,287 +162,253 @@
     <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
         <div class="nav-row">
-       
-            <a href="#" class="nav-item nav-trending {% if active_page == 'trending' %}active{% endif %}">Trending</a>
-            <a href="{% url 'daos' %}" class="nav-item nav-daos {% if active_page == 'daos' %}active{% endif %}">DAOs</a>
+            <a href="#" class="nav-item nav-trending">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos">DAOs</a>
         </div>
         <div class="nav-row">
-
-            <a href="#" class="nav-item nav-events {% if active_page == 'events' %}active{% endif %}">Events</a>
-            <a href="{% url 'claim_contributor_card' %}" class="nav-item nav-marketplace {% if active_page == 'marketplace' %}active{% endif %}">Marketplace</a>
+            <a href="#" class="nav-item nav-events">Events</a>
+            <a href="{% url 'contributor_cards_marketplace' %}" class="nav-item nav-marketplace">Marketplace</a>
         </div>
     </nav>
 
+    <!-- ============================ FIRST SCRIPT (3D SETUP) ============================ -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+
+            // 1) Create scene, camera, renderer
             const scene = new THREE.Scene();
             const container = document.getElementById('3d-container');
-            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            const camera = new THREE.PerspectiveCamera(
+                75,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
+            // 2) Crisp rendering: set pixel ratio to devicePixelRatio
+            //    so on high DPI screens or if user zooms in, we re-render at higher resolution
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
             renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.outputEncoding = THREE.sRGBEncoding; // Ensure proper color encoding
+            renderer.outputEncoding = THREE.sRGBEncoding;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1.0;
+            renderer.setClearColor(0x000000, 0);
             container.appendChild(renderer.domElement);
 
-            let model;
-            let modelContainer = new THREE.Object3D();
-            scene.add(modelContainer);
+            // Export references for the second script
+            window.modelContainer = new THREE.Object3D();
+            window.model = null;
+            window.rendererRef = renderer;
+            window.cameraRef = camera;
+            scene.add(window.modelContainer);
+
             let isDragging = false;
             let previousMousePosition = { x: 0, y: 0 };
+            let uvRotated = false;
 
-            let customImageTexture;
-            let customTextures = [];
+            // 3) Add extra lights so it looks more lit (like the marketplace)
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
 
-            // Initialize PMREMGenerator
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 5, 5);
+            scene.add(dirLight);
+
+            // 4) PMREM for environment
             const pmremGenerator = new THREE.PMREMGenerator(renderer);
             pmremGenerator.compileEquirectangularShader();
+            scene.background = null; // alpha background
 
-            // Load the HDRI environment map
+            // 5) Load HDR environment
             const rgbeLoader = new THREE.RGBELoader();
-            rgbeLoader.setDataType(THREE.UnsignedByteType); // For proper gamma correction
+            rgbeLoader.setDataType(THREE.UnsignedByteType);
             rgbeLoader.load("{% static 'textures/neon_photostudio_4k.hdr' %}", function (texture) {
                 const envMap = pmremGenerator.fromEquirectangular(texture).texture;
                 scene.environment = envMap;
                 texture.dispose();
                 pmremGenerator.dispose();
-
-                // Now load the GLB model after the environment is set
                 loadModel();
             });
 
-            // Get the GLB file path from the template variable
+            // 6) Load the GLB from the Django variable
             const glbFilePath = "{% static glb_file %}";
-
             function loadModel() {
-                // Load the GLB model
                 const loader = new THREE.GLTFLoader();
                 loader.load(glbFilePath, function (gltf) {
-                    model = gltf.scene;
-                    console.log('Model loaded:', model);
+                    window.model = gltf.scene;
+                    console.log('Model loaded:', window.model);
 
-                    // Center the model
-                    const box = new THREE.Box3().setFromObject(model);
+                    // Center & scale model
+                    const box = new THREE.Box3().setFromObject(window.model);
                     const center = box.getCenter(new THREE.Vector3());
-                    model.position.sub(center);
-
-                    // Scale the model to fit the view
+                    window.model.position.sub(center);
                     const size = box.getSize(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = 1 / maxDim;
-                    model.scale.setScalar(scale * 1.7);
+                    window.model.scale.setScalar((1 / maxDim) * 1.7);
 
-                    modelContainer.add(model);
-
-                    // Adjust initial rotation to face the front side
-                    modelContainer.rotation.y += -Math.PI / 2; // Rotate by -90 degrees
-
-                    // Position camera slightly farther from the model
+                    window.modelContainer.add(window.model);
+                    window.modelContainer.rotation.y = -Math.PI / 2;
                     camera.position.set(0, 0, 1.0);
-                    camera.lookAt(modelContainer.position);
+                    camera.lookAt(window.modelContainer.position);
 
-                    // Traverse the model to adjust materials
-                    model.traverse((child) => {
+                    // Tweak materials
+                    window.model.traverse((child) => {
                         if (child.isMesh) {
-                            console.log('Mesh name:', child.name);
-                    
-                            // Ensure textures have correct encoding
                             if (child.material.map) {
                                 child.material.map.encoding = THREE.sRGBEncoding;
                             }
-                    
-                            // Specific adjustments for Plane, Plane003, Text0, Text008
-                            if (['Plane', 'Plane', 'Plane003', 'Text0', 'Text008'].includes(child.name)) {
-                                child.material.color.set(0xffffff); // Ensure material is white
-                                child.material.metalness = 0; // No reflectivity
-                                child.material.roughness = 1; // Matte finish
-                                child.material.transparent = false; // Ensure no transparency
-                                child.material.opacity = 1; // Full opacity
-                                child.material.side = THREE.DoubleSide; // Render both sides
-                                child.material.needsUpdate = true;
+                            if (['Plane', 'Plane003', 'Text0', 'Text008'].includes(child.name)) {
+                                child.material.color.set(0xffffff);
+                                child.material.metalness = 0;
+                                child.material.roughness = 1;
+                                child.material.transparent = true; 
+                                child.material.alphaTest = 0.01; 
+                                child.material.side = THREE.DoubleSide;
                             }
-                    
-                            // Adjust material properties for other meshes (excluding Plane001)
                             if (child.name !== 'Plane001') {
-                                child.material.roughness = 0.2; // Lower roughness for glossiness
-                                child.material.metalness = 0.5; // Increase metalness for reflectivity
-                                child.material.envMapIntensity = 1.0; // Adjust as needed
-                                child.material.needsUpdate = true;
+                                child.material.roughness = 0.2;
+                                child.material.metalness = 0.5;
+                                child.material.envMapIntensity = 1.0;
                             }
-                    
-                            // Handle Plane001 separately (Custom Image Mesh)
                             if (child.name === 'Plane001') {
-                                // Store reference for later use
                                 window.plane001Mesh = child;
-                    
-                                // Set initial material to black MeshBasicMaterial
-                                window.plane001Mesh.material = new THREE.MeshBasicMaterial({
-                                    color: 0x000000, // Set initial color to black
+                                child.material = new THREE.MeshBasicMaterial({
+                                    color: 0x000000,
                                     side: THREE.DoubleSide
                                 });
-                                window.plane001Mesh.material.needsUpdate = true;
                             }
                         }
                     });
 
                     centerModel();
                     animate();
-                }, undefined, function (error) {
-                    console.error('An error happened while loading the model:', error);
+                }, undefined, function (err) {
+                    console.error('Error loading model:', err);
                 });
             }
 
             function centerModel() {
-                const box = new THREE.Box3().setFromObject(model);
+                if (!window.model) return;
+                const box = new THREE.Box3().setFromObject(window.model);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
-                model.position.sub(center);
-                modelContainer.position.copy(new THREE.Vector3(0, 0, -size.z / 2));
+                window.model.position.sub(center);
+                window.modelContainer.position.set(0, 0, -size.z / 2);
             }
 
-            // Custom rotation handler
-            container.addEventListener('mousedown', onMouseDown, false);
-            container.addEventListener('mousemove', onMouseMove, false);
-            container.addEventListener('mouseup', onMouseUp, false);
+            // 7) Mouse rotation
+            container.addEventListener('mousedown', onMouseDown);
+            container.addEventListener('mousemove', onMouseMove);
+            container.addEventListener('mouseup', onMouseUp);
 
-            function onMouseDown(event) {
+            function onMouseDown(e) {
                 isDragging = true;
-                previousMousePosition = { x: event.clientX, y: event.clientY };
+                previousMousePosition = { x: e.clientX, y: e.clientY };
             }
-
-            function onMouseMove(event) {
-                if (!isDragging || !modelContainer) return;
-
-                const deltaMove = {
-                    x: event.clientX - previousMousePosition.x,
-                    y: event.clientY - previousMousePosition.y
-                };
+            function onMouseMove(e) {
+                if (!isDragging || !window.modelContainer) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
 
                 const rotationSpeed = 0.005;
+                window.modelContainer.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -deltaX * rotationSpeed);
+                window.modelContainer.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), -deltaY * rotationSpeed);
 
-                // Rotate around world Y axis
-                modelContainer.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -deltaMove.x * rotationSpeed);
-
-                // Rotate around world X axis
-                modelContainer.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), -deltaMove.y * rotationSpeed);
-
-                previousMousePosition = { x: event.clientX, y: event.clientY };
-
-                // Update the slider value based on rotation
                 updateSliderFromRotation();
             }
-
-            function onMouseUp(event) {
+            function onMouseUp() {
                 isDragging = false;
             }
 
-            // Add flip button functionality
+            // 8) Flip card button
             const flipButton = document.getElementById('flip-card');
             flipButton.addEventListener('click', function () {
-                gsap.to(modelContainer.rotation, {
-                    y: modelContainer.rotation.y + Math.PI,
+                gsap.to(window.modelContainer.rotation, {
+                    y: window.modelContainer.rotation.y + Math.PI,
                     duration: 0.5,
                     onUpdate: updateSliderFromRotation
                 });
             });
 
-            // Image upload functionality
-            let uvRotated = false;
-
-            document.getElementById('imageUpload').addEventListener('change', function (e) {
+            // 9) Image upload
+            const imageUpload = document.getElementById('imageUpload');
+            imageUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-            
                 const reader = new FileReader();
-                reader.onload = function (event) {
+                reader.onload = (event) => {
                     const textureLoader = new THREE.TextureLoader();
                     textureLoader.load(
                         event.target.result,
-                        function (texture) {
-                            // Set texture properties
+                        (texture) => {
                             texture.encoding = THREE.sRGBEncoding;
-                            texture.flipY = false; // Prevent vertical flipping
-                            texture.name = 'customImageTexture';
-            
-                            // Ensure the mesh exists
+                            texture.flipY = false;
                             if (!window.plane001Mesh) {
-                                console.error('Plane001 mesh not found');
+                                console.error('Plane001 not found');
                                 return;
                             }
-            
-                            // Apply the texture to the mesh material
                             window.plane001Mesh.material = new THREE.MeshStandardMaterial({
                                 map: texture,
                                 side: THREE.DoubleSide
                             });
-                            window.plane001Mesh.material.needsUpdate = true;
-            
-                            customImageTexture = texture;
-                            customTextures.push(customImageTexture);
-            
-                            // Rotate UVs only once
                             if (!uvRotated) {
-                                const uvAttribute = window.plane001Mesh.geometry.getAttribute('uv');
-                                for (let i = 0; i < uvAttribute.count; i++) {
-                                    const u = uvAttribute.getX(i);
-                                    const v = uvAttribute.getY(i);
-                                    const newU = 1 - v;
-                                    const newV = u;
-                                    uvAttribute.setXY(i, newU, newV);
+                                const uvAttr = window.plane001Mesh.geometry.getAttribute('uv');
+                                for (let i = 0; i < uvAttr.count; i++) {
+                                    const u = uvAttr.getX(i);
+                                    const v = uvAttr.getY(i);
+                                    uvAttr.setXY(i, 1 - v, u);
                                 }
-                                uvAttribute.needsUpdate = true;
-                                uvRotated = true; // Prevent future rotations
+                                uvAttr.needsUpdate = true;
+                                uvRotated = true;
                             }
-            
-                            // Render the scene with the updated texture
                             renderer.render(scene, camera);
                         },
                         undefined,
-                        function (error) {
-                            console.error('Error loading texture:', error);
-                        }
+                        (err) => console.error('Texture load error:', err)
                     );
                 };
                 reader.readAsDataURL(file);
             });
 
+            // 10) Animation loop
             function animate() {
                 requestAnimationFrame(animate);
                 renderer.render(scene, camera);
             }
 
-            // Handle window resizing
-            window.addEventListener('resize', function () {
-                const aspect = container.clientWidth / container.clientHeight;
-                camera.aspect = aspect;
+            // 11) Resize => recalc aspect & set canvas size
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
                 camera.updateProjectionMatrix();
+
                 renderer.setSize(container.clientWidth, container.clientHeight);
+                // keep the crisp ratio
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
             });
 
-            // Add rotation slider functionality
+            // 12) Rotation slider
             const rotationSlider = document.getElementById('rotationSlider');
             rotationSlider.addEventListener('input', function () {
                 const angle = THREE.MathUtils.degToRad(this.value);
-                modelContainer.rotation.y = angle - Math.PI / 2; // Adjust for initial -90-degree rotation
+                window.modelContainer.rotation.y = angle - Math.PI / 2;
             });
 
-            // Function to update slider value based on model rotation
             function updateSliderFromRotation() {
-                const angle = modelContainer.rotation.y + Math.PI / 2; // Adjust for initial rotation
+                const angle = window.modelContainer.rotation.y + Math.PI / 2;
                 const degrees = (THREE.MathUtils.radToDeg(angle) + 360) % 360;
                 rotationSlider.value = degrees.toFixed(1);
             }
 
-            // Add download functionality
+            // 13) Download button
             const downloadButton = document.getElementById('download-model');
             downloadButton.addEventListener('click', function () {
-                // Clone the model
-                const clonedModel = model.clone(true);
+                if (!window.model) return;
+                const clonedModel = window.model.clone(true);
+                clonedModel.applyMatrix4(window.modelContainer.matrixWorld);
 
-                // Apply transformations from modelContainer to clonedModel
-                clonedModel.applyMatrix4(modelContainer.matrixWorld);
-
-                // Remove cameras and lights from the cloned model
+                // Remove cameras/lights
                 const nodesToRemove = [];
                 clonedModel.traverse((node) => {
                     if (node.isCamera || node.isLight) {
@@ -412,54 +416,37 @@
                     }
                 });
                 nodesToRemove.forEach((node) => {
-                    if (node.parent) {
-                        node.parent.remove(node);
-                    }
+                    if (node.parent) node.parent.remove(node);
                 });
 
-                // Collect meshes for exporting
+                // Collect meshes
                 const meshes = [];
-
                 clonedModel.traverse((node) => {
                     if (node.isMesh) {
-                        // Clone the mesh to avoid modifying the original
                         const mesh = node.clone();
-                        mesh.material = node.material; // Use the same material
-                        mesh.geometry = node.geometry.clone(); // Clone the geometry
-
-                        // Update world matrix
+                        mesh.material = node.material; 
+                        mesh.geometry = node.geometry.clone();
                         node.updateMatrixWorld(true);
-
-                        // Apply the world matrix to geometry vertices
                         mesh.geometry.applyMatrix4(node.matrixWorld);
-
-                        // Reset transformations
                         mesh.position.set(0, 0, 0);
                         mesh.rotation.set(0, 0, 0);
                         mesh.scale.set(1, 1, 1);
                         mesh.updateMatrixWorld(true);
-
                         meshes.push(mesh);
                     }
                 });
 
-                // Center the geometries
+                // Center geometry
                 const bbox = new THREE.Box3().setFromObject(clonedModel);
                 const center = bbox.getCenter(new THREE.Vector3());
-
-                // Shift each geometry to center the model
                 meshes.forEach((mesh) => {
                     mesh.geometry.translate(-center.x, -center.y, -center.z);
                 });
 
-                // Export the meshes directly
+                // Export
                 const exporter = new THREE.GLTFExporter();
-                const options = {
-                    binary: true,
-                    embedImages: true
-                };
-
-                exporter.parse(meshes, function (result) {
+                const options = { binary: true, embedImages: true };
+                exporter.parse(meshes, (result) => {
                     if (result instanceof ArrayBuffer) {
                         saveArrayBuffer(result, 'customized_model.glb');
                     } else {
@@ -473,31 +460,188 @@
                 const blob = new Blob([buffer], { type: 'application/octet-stream' });
                 saveBlob(blob, filename);
             }
-
             function saveString(text, filename) {
                 const blob = new Blob([text], { type: 'text/plain' });
                 saveBlob(blob, filename);
             }
-
             function saveBlob(blob, filename) {
                 const link = document.createElement('a');
                 link.style.display = 'none';
                 document.body.appendChild(link);
-
                 link.href = URL.createObjectURL(blob);
                 link.download = filename;
                 link.click();
-
-                // Cleanup
                 URL.revokeObjectURL(link.href);
                 document.body.removeChild(link);
             }
         });
     </script>
 
-    <!-- Include your custom JS file if needed -->
-    <!-- <script src="{% static 'js/home.js' %}"></script> -->
-    <script src="{% static 'js/home.js' %}"></script>
-    <script src="{% static 'js/login.js' %}"></script>
+    <!-- ============================ SECOND SCRIPT (PINATA EXPORT + COVER) ============================ -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let coverImageDataUrl = null;
+
+
+            // "Create Collection" logic
+            const createCollectionButton = document.getElementById('create-collection');
+            const spinner = document.getElementById('loading-spinner');
+            
+            createCollectionButton.addEventListener('click', async () => {
+                createCollectionButton.disabled = true;
+                spinner.style.display = "block";
+
+                try {
+                    // Export .glb
+                    const glbBuffer = await exportCurrentModelToGLB();
+                    const formData = new FormData();
+                    formData.append(
+                        "glb_file",
+                        new Blob([glbBuffer], { type: "application/octet-stream" }),
+                        "customized_model.glb"
+                    );
+
+                    if (coverImageDataUrl) {
+                        const coverBlob = dataURLtoBlob(coverImageDataUrl);
+                        formData.append("cover_image", coverBlob, "cover.png");
+                    }
+
+                    const response = await fetch("{% url 'claim_contributor_card' %}", {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": "{{ csrf_token }}"
+                        },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        alert(`Success! IPFS URL: ${result.ipfs_url}`);
+                    } else {
+                        alert(`Error: ${result.message}`);
+                    }
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                } finally {
+                    createCollectionButton.disabled = false;
+                    spinner.style.display = "none";
+                }
+            });
+
+            async function exportCurrentModelToGLB() {
+                return new Promise((resolve, reject) => {
+                    if (!window.model || !window.modelContainer) {
+                        return reject(new Error("Model not yet loaded."));
+                    }
+                    const clonedModel = window.model.clone(true);
+                    clonedModel.applyMatrix4(window.modelContainer.matrixWorld);
+
+                    const nodesToRemove = [];
+                    clonedModel.traverse((node) => {
+                        if (node.isCamera || node.isLight) {
+                            nodesToRemove.push(node);
+                        }
+                    });
+                    nodesToRemove.forEach((node) => {
+                        if (node.parent) node.parent.remove(node);
+                    });
+
+                    const meshes = [];
+                    clonedModel.traverse((node) => {
+                        if (node.isMesh) {
+                            const mesh = node.clone();
+                            mesh.material = node.material; 
+                            mesh.geometry = node.geometry.clone();
+                            node.updateMatrixWorld(true);
+                            mesh.geometry.applyMatrix4(node.matrixWorld);
+                            mesh.position.set(0, 0, 0);
+                            mesh.rotation.set(0, 0, 0);
+                            mesh.scale.set(1, 1, 1);
+                            mesh.updateMatrixWorld(true);
+                            meshes.push(mesh);
+                        }
+                    });
+
+                    const bbox = new THREE.Box3().setFromObject(clonedModel);
+                    const center = bbox.getCenter(new THREE.Vector3());
+                    meshes.forEach((mesh) => {
+                        mesh.geometry.translate(-center.x, -center.y, -center.z);
+                    });
+
+                    const exporter = new THREE.GLTFExporter();
+                    const options = { binary: true, embedImages: true };
+                    exporter.parse(meshes, (result) => {
+                        resolve(result);
+                    }, options);
+                });
+            }
+
+            function dataURLtoBlob(dataUrl) {
+                const arr = dataUrl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new Blob([u8arr], { type: mime });
+            }
+
+            // same cropTransparent as before
+            async function cropTransparent(dataUrl) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const pixels = imageData.data;
+
+                        let minX = canvas.width,
+                            minY = canvas.height,
+                            maxX = 0,
+                            maxY = 0;
+
+                        for (let y = 0; y < canvas.height; y++) {
+                            for (let x = 0; x < canvas.width; x++) {
+                                const index = (y * canvas.width + x) * 4;
+                                const alpha = pixels[index + 3];
+                                if (alpha > 0) {
+                                    if (x < minX) minX = x;
+                                    if (x > maxX) maxX = x;
+                                    if (y < minY) minY = y;
+                                    if (y > maxY) maxY = y;
+                                }
+                            }
+                        }
+                        if (maxX < minX || maxY < minY) {
+                            resolve(dataUrl);
+                            return;
+                        }
+                        const croppedWidth = maxX - minX + 1;
+                        const croppedHeight = maxY - minY + 1;
+                        const croppedCanvas = document.createElement('canvas');
+                        croppedCanvas.width = croppedWidth;
+                        croppedCanvas.height = croppedHeight;
+                        const croppedCtx = croppedCanvas.getContext('2d');
+                        croppedCtx.drawImage(
+                            img,
+                            minX, minY, croppedWidth, croppedHeight,
+                            0, 0, croppedWidth, croppedHeight
+                        );
+                        const croppedDataUrl = croppedCanvas.toDataURL('image/png');
+                        resolve(croppedDataUrl);
+                    };
+                    img.onerror = () => resolve(dataUrl);
+                    img.src = dataUrl;
+                });
+            }
+        });
+    </script>
 </body>
 </html>

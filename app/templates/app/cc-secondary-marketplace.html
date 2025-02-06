@@ -1,0 +1,1795 @@
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="{% static 'Images/Logos/DaospaceLogo.svg' %}" type="image/svg+xml">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contributor Cards - Secondary Market</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+
+    <style>
+      /* =======================
+         Overlay & Zoom Styles
+         ======================= */
+      .model-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9998;
+      }
+      .model-overlay.active {
+        display: flex;
+      }
+      .model-overlay-content {
+        position: relative;
+        max-width: 90vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        overflow: visible;
+      }
+      #bigModelViewer {
+        width: 80vw;
+        height: 80vh;
+        background: transparent;
+        disable-zoom: true;
+        field-of-view: 50deg;
+        --poster-color: transparent;
+      }
+      .model-overlay-close {
+        font-size: 24px;
+        margin-bottom: 5px;
+        margin-right: 5px;
+        background: transparent;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        z-index: 10000;
+      }
+      .zoom-slider-container {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+        z-index: 10001;
+      }
+      #zoomSlider {
+        writing-mode: bt-lr;
+        -webkit-appearance: slider-vertical;
+        width: 8px;
+        height: 200px;
+        background: #444;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      #zoomSlider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      #zoomSlider::-moz-range-thumb,
+      #zoomSlider::-ms-thumb {
+        width: 20px;
+        height: 20px;
+        background: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      /* Leverage .dao-list / .dao-item / .dao-header from home.css */
+
+      /* For partial-buy input alignment */
+      .buy-quantity-input {
+        width: 50px;
+        margin-right: 5px;
+      }
+
+      /* =======================
+         GLB Selection Styles
+         ======================= */
+      .glb-selection {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .glb-item {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        border: 2px solid transparent;
+        border-radius: 10px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: border 0.3s;
+      }
+      .glb-item.selected {
+        border: 2px solid #00f;
+      }
+      .glb-item model-viewer {
+        width: 100%;
+        height: 100%;
+      }
+      .glb-item .token-id {
+        position: absolute;
+        bottom: 5px;
+        left: 5px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      .glb-selection-title {
+        width: 100%;
+        margin-bottom: 10px;
+        font-weight: bold;
+      }
+
+      /* Additional Styles for Enhanced UI */
+      .dao-list {
+        list-style: none;
+        padding: 0;
+      }
+      .dao-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid #ccc;
+      }
+      .dao-number {
+        width: 30px;
+        text-align: center;
+        font-weight: bold;
+      }
+      .dao-header {
+        display: flex;
+        align-items: center;
+        flex-grow: 1;
+        position: relative;
+      }
+      .dao-metrics {
+        margin-left: 15px;
+      }
+      .buy-button {
+        padding: 5px 10px;
+        margin-left: 5px;
+        cursor: pointer;
+        background-color: #28a745;
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        transition: background-color 0.3s;
+      }
+      .buy-button:hover {
+        background-color: #218838;
+      }
+      .buy-button.cancel {
+        background-color: #c82333;
+      }
+      .buy-button.cancel:hover {
+        background-color: #bd2130;
+      }
+      .enlarge-hint {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        font-size: 10px;
+        padding: 2px 0;
+      }
+
+      /* Loading Spinner */
+      .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border-left-color: #09f;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Responsive Adjustments */
+      @media (max-width: 768px) {
+        .glb-item {
+          width: 100px;
+          height: 100px;
+        }
+        #bigModelViewer {
+          width: 90vw;
+          height: 60vh;
+        }
+      }
+    </style>
+</head>
+<body>
+    <!-- Logo Container -->
+    <div class="logo-container">
+        <a href="{% url 'home' %}">
+            <img src="{% static 'Images/Logos/DaospaceLogo.svg' %}" alt="Daospace Logo">
+        </a>
+    </div>
+
+    <!-- Server-Side Animation URL Mapping -->
+    <script>
+      window.serverSideAnimationUrls = JSON.parse('{{ cards_dict_json|escapejs }}');
+    </script>
+
+    <div class="content-wrapper">
+      <div class="centered-box">
+        <h2>Contributor Cards - Secondary Market</h2>
+
+        <div class="button-container">
+          <a href="{% url 'contributor_cards_marketplace' %}" class="btn-link">Primary Marketplace</a>
+          <a href="{% url 'claim_contributor_card' %}" class="btn-link">Claim Your Contributor Card (RARI Foundation Only)</a>
+      </div>
+      
+      <style>
+          .button-container {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              margin-top: 40px; /* Adjusted margin for spacing */
+              gap: 15px;
+          }
+      
+          .btn-link {
+              display: inline-block;
+              padding: 8px 16px;
+              font-size: 12.5px;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #ff6600; /* Warm gradient-inspired color */
+              text-decoration: none;
+              border: 2px solid #ff6600;
+              border-radius: 6px;
+              background: rgba(0, 0, 0, 0.8);
+              transition: all 0.3s ease-in-out;
+              box-shadow: 0 0 6px rgba(255, 102, 0, 0.6), 0 0 12px rgba(255, 102, 0, 0.3);
+          }
+      
+          .btn-link:hover {
+              background: linear-gradient(45deg, #ff6600, #ffcc00); /* Gradient inspired by logo */
+              color: #000;
+              box-shadow: 0 0 12px rgba(255, 102, 0, 0.9), 0 0 24px rgba(255, 204, 0, 0.6);
+          }
+      </style>
+<br>           
+
+        <!-- Listing Form -->
+        <div style="margin-bottom: 20px;">
+          <h3>Create Listing</h3>
+
+          <!-- GLB Selection -->
+          <div class="glb-selection">
+            <div class="glb-selection-title">Select Your Token:</div>
+            <!-- Dynamically populated by JS -->
+          </div>
+
+          <!-- Hidden Input to Store Selected Token ID -->
+          <input type="hidden" id="selectedTokenId" value="">
+
+          <!-- Quantity Input -->
+          <div style="margin-bottom: 10px;">
+            <label for="quantityInput">Quantity:</label>
+            <input type="number" id="quantityInput" placeholder="1" min="1" style="margin-left: 10px;">
+          </div>
+          <!-- Price Input -->
+          <div style="margin-bottom: 10px;">
+            <label for="priceInput">Price (ETH):</label>
+            <input type="text" id="priceInput" placeholder="e.g., 0.05" style="margin-left: 10px;">
+          </div>
+          <!-- List Button -->
+          <button id="listNftButton">List NFT</button>
+          <!-- Status Message -->
+          <div id="statusMessage" style="margin-top: 10px; color: green; font-weight: bold;"></div>
+        </div>
+
+        <!-- Active Listings -->
+        <h3>Active Listings</h3>
+        <div id="listingsLoading" class="spinner" style="display: none;"></div>
+        <ul class="dao-list" id="listingsUL">
+          <!-- Dynamically populated by JS -->
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-trending">Trending</a>
+            <a href="{% url 'daos' %}" class="nav-item nav-daos">DAOs</a>
+        </div>
+        <div class="nav-row">
+            <a href="#" class="nav-item nav-events">Events</a>
+            <a href="{% url 'contributor_cards_marketplace' %}" class="nav-item nav-marketplace">Marketplace</a>
+        </div>
+    </nav>
+
+    <!-- Fullscreen Overlay for big model -->
+    <div id="modelOverlay" class="model-overlay">
+      <div class="model-overlay-content">
+        <!-- Vertical slider for zoom -->
+        <div class="zoom-slider-container">
+          <input
+            type="range"
+            id="zoomSlider"
+            min="10"
+            max="50"
+            step="1"
+            value="50"
+            orient="vertical"
+          >
+        </div>
+        <!-- Close button -->
+        <button class="model-overlay-close" id="modelOverlayClose">&times;</button>
+        <!-- Big model-viewer -->
+        <model-viewer
+          id="bigModelViewer"
+          camera-controls
+          auto-rotate
+          enable-pan
+          disable-zoom
+          alt="Full-screen Model Viewer"
+        >
+        </model-viewer>
+      </div>
+    </div>
+
+    <!-- Model Viewer Script -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+    <!-- web3.js -->
+    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.7.5/dist/web3.min.js"></script>
+
+    <!-- Full ABI (Secondary Marketplace Contract), NOT truncated -->
+    <script>
+    const contributorCardsAbi = [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        }
+      ],
+      "name": "ApprovalForAll",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        }
+      ],
+      "name": "cancelListing",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "pricePerToken",
+          "type": "uint256"
+        }
+      ],
+      "name": "createListing",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "tokenIds",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "quantities",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "pricePerTokens",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "createListingsBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "ipfsMetadataUri",
+          "type": "string"
+        },
+        {
+          "internalType": "address",
+          "name": "contributor",
+          "type": "address"
+        }
+      ],
+      "name": "lazyMint",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        }
+      ],
+      "name": "ListingCancelled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "originalQuantity",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "pricePerToken",
+          "type": "uint256"
+        }
+      ],
+      "name": "ListingCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newPrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "ListingPriceUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "totalPrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "ListingPurchased",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newQuantity",
+          "type": "uint256"
+        }
+      ],
+      "name": "ListingQuantityUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "newIpfsUri",
+          "type": "string"
+        }
+      ],
+      "name": "MetadataUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        }
+      ],
+      "name": "purchaseFromListing",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "seller",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "quantity",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "expectedTotalPrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "purchaseFromSeller",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "listingIds",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "quantities",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "purchaseListingsBatch",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "ids",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "amounts",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "safeBatchTransferFrom",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "safeTransferFrom",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "approved",
+          "type": "bool"
+        }
+      ],
+      "name": "setApprovalForAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256[]",
+          "name": "ids",
+          "type": "uint256[]"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256[]",
+          "name": "values",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "TransferBatch",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "TransferSingle",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newPricePerToken",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateListingPrice",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "listingId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newQuantity",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateListingQuantity",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "newIpfsUri",
+          "type": "string"
+        }
+      ],
+      "name": "updateMetadata",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "URI",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address[]",
+          "name": "accounts",
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "ids",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "balanceOfBatch",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getMintedCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        }
+      ],
+      "name": "isApprovedForAll",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "LAZY_MINT_PRICE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_SUPPLY_PER_TOKEN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_salePrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "royaltyInfo",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceId",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
+      "name": "uri",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+    ];
+    </script>
+
+    <!-- Simplified JavaScript for Enlarge Functionality and Listings Management -->
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+        console.log("Secondary Market with GLB Selection and Active Listings loaded.");
+
+        // =========================
+        // 1. Web3 Initialization
+        // =========================
+
+        // RARI Chain RPC URLs
+        const rpcUrl = "https://mainnet.rpc.rarichain.org/http"; // Replace with actual RARI RPC URL
+        const wsRpcUrl = "wss://mainnet.rpc.rarichain.org/ws"; // Replace with actual RARI WS RPC URL if needed
+
+        let web3;
+        let contract;
+        let userAddress = null;
+        let isWalletConnected = false;
+
+        if (typeof window.ethereum !== 'undefined') {
+          // User has a wallet, use it as the provider
+          web3 = new Web3(window.ethereum);
+          try {
+            // Request account access
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            if (accounts.length > 0) {
+              userAddress = accounts[0];
+              isWalletConnected = true;
+              console.log("Connected using window.ethereum");
+            }
+          } catch (err) {
+            console.error("User denied account access:", err);
+            // Proceed without wallet (read-only)
+          }
+        } 
+
+        if (!web3) {
+          // Fallback to RARI Chain's read-only provider
+          const readOnlyProvider = new Web3.providers.HttpProvider(rpcUrl);
+          web3 = new Web3(readOnlyProvider);
+          console.log("Connected using RARI Chain read-only provider");
+        }
+
+        // Initialize contract instance
+        const contractAddress = "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277"; // Replace with your contract address
+        contract = new web3.eth.Contract(contributorCardsAbi, contractAddress);
+
+        // =========================
+        // 2. Helper Functions
+        // =========================
+
+        const statusEl = document.getElementById("statusMessage");
+        const listingsLoading = document.getElementById("listingsLoading");
+
+        function setStatus(msg, isError = false) {
+          statusEl.textContent = msg;
+          statusEl.style.color = isError ? "red" : "green";
+          console.log(msg);
+        }
+
+        // Convert server-side tokenId -> animation_url dict
+        const serverAnimationMap = window.serverSideAnimationUrls || {};
+
+        // We'll store listings in memory
+        const listingsData = {};
+
+        // Truncate address for display
+        function truncateAddress(address) {
+          if (!address) return "";
+          return address.slice(0, 6) + "..." + address.slice(-4);
+        }
+
+        // =========================
+        // 3. Build Listing State
+        // =========================
+
+        async function buildListingsFromEvents() {
+          const fromBlock = 0; // Adjust as needed
+          const toBlock = "latest";
+
+          try {
+            const createdEvents = await contract.getPastEvents("ListingCreated", { fromBlock, toBlock });
+            const cancelledEvents = await contract.getPastEvents("ListingCancelled", { fromBlock, toBlock });
+            const priceUpdatedEvents = await contract.getPastEvents("ListingPriceUpdated", { fromBlock, toBlock });
+            const purchasedEvents = await contract.getPastEvents("ListingPurchased", { fromBlock, toBlock });
+
+            // Reset local memory
+            for (const k in listingsData) {
+              delete listingsData[k];
+            }
+
+            // Created
+            createdEvents.forEach(ev => {
+              const rv = ev.returnValues;
+              listingsData[rv.listingId] = {
+                listingId: rv.listingId,
+                seller: rv.seller,
+                tokenId: rv.tokenId,
+                remainingQuantity: parseInt(rv.originalQuantity, 10),
+                priceWei: rv.pricePerToken,
+                active: true
+              };
+            });
+
+            // Cancelled => active = false
+            cancelledEvents.forEach(ev => {
+              const id = ev.returnValues.listingId;
+              if (listingsData[id]) {
+                listingsData[id].active = false;
+              }
+            });
+
+            // PriceUpdated => set new price
+            priceUpdatedEvents.forEach(ev => {
+              const rv = ev.returnValues;
+              if (listingsData[rv.listingId] && listingsData[rv.listingId].active) {
+                listingsData[rv.listingId].priceWei = rv.newPrice;
+              }
+            });
+
+            // Purchased => reduce quantity
+            purchasedEvents.forEach(ev => {
+              const rv = ev.returnValues;
+              const listingId = rv.listingId;
+              if (!listingsData[listingId] || !listingsData[listingId].active) return;
+
+              const qty = parseInt(rv.quantity, 10);
+              listingsData[listingId].remainingQuantity -= qty;
+              if (listingsData[listingId].remainingQuantity <= 0) {
+                listingsData[listingId].active = false;
+              }
+            });
+          } catch (error) {
+            console.error("Error fetching events:", error);
+            setStatus("Error fetching listings from the blockchain.", true);
+          }
+        }
+
+        // =========================
+        // 4. Render Listings
+        // =========================
+
+        async function loadAllListings() {
+          listingsLoading.style.display = "block";
+          setStatus("Loading listings from blockchain...");
+          await buildListingsFromEvents();
+
+          const listingsUL = document.getElementById("listingsUL");
+          listingsUL.innerHTML = "";
+
+          // Sort listing IDs numerically
+          const allIds = Object.keys(listingsData).sort((a, b) => parseInt(a) - parseInt(b));
+          let listingCounter = 0;
+
+          for (const id of allIds) {
+            const data = listingsData[id];
+            if (!data.active) continue;
+            if (data.remainingQuantity <= 0) continue;
+
+            listingCounter++;
+
+            // <li class="dao-item">
+            const li = document.createElement("li");
+            li.className = "dao-item";
+
+            // Left number
+            const daoNumberDiv = document.createElement("div");
+            daoNumberDiv.className = "dao-number";
+            daoNumberDiv.innerHTML = `<span>${listingCounter}.</span>`;
+
+            // dao-header
+            const daoHeaderDiv = document.createElement("div");
+            daoHeaderDiv.className = "dao-header";
+
+            // Model viewer
+            const tokenIdStr = String(data.tokenId);
+            const animationUrl = serverAnimationMap[tokenIdStr] || "";
+
+            const modelViewer = document.createElement("model-viewer");
+            modelViewer.className = "mini-model";
+            modelViewer.setAttribute("camera-controls", "");
+            modelViewer.setAttribute("auto-rotate", "");
+            modelViewer.style.width = "100px";
+            modelViewer.style.height = "100px";
+            modelViewer.style.cursor = "pointer";
+            modelViewer.alt = "Contributor Card Preview";
+            if (animationUrl) {
+              modelViewer.src = animationUrl;
+            }
+
+            // "Click to Enlarge" hint
+            const enlargeHint = document.createElement("div");
+            enlargeHint.className = "enlarge-hint";
+            enlargeHint.textContent = "";
+
+            // dao-metrics
+            const daoMetricsDiv = document.createElement("div");
+            daoMetricsDiv.className = "dao-metrics";
+            // Load the contributor names dictionary from Django
+            const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
+
+            daoMetricsDiv.innerHTML = `
+              <div>Contributor: ${contributorNamesMap[data.tokenId] || "Unknown"}</div> <!-- ✅ Now it shows correct contributor name -->
+              <div>Seller: ${truncateAddress(data.seller)}</div>
+              <div>Token ID: ${data.tokenId}</div>
+              <div>Remaining: ${data.remainingQuantity}</div>
+              <div>Price: ${web3.utils.fromWei(data.priceWei.toString(), "ether")} ETH</div>
+            `;
+
+
+
+            daoHeaderDiv.appendChild(modelViewer);
+            daoHeaderDiv.appendChild(enlargeHint);
+            daoHeaderDiv.appendChild(daoMetricsDiv);
+
+            // Buy/cancel area
+            const actionDiv = document.createElement("div");
+
+            // partial buy input
+            const buyQtyInput = document.createElement("input");
+            buyQtyInput.type = "number";
+            buyQtyInput.className = "buy-quantity-input";
+            buyQtyInput.min = "1";
+            buyQtyInput.max = data.remainingQuantity.toString();
+            buyQtyInput.value = "1";
+
+            // buy button
+            const buyBtn = document.createElement("button");
+            buyBtn.className = "buy-button";
+            buyBtn.textContent = "Buy";
+            buyBtn.addEventListener("click", async (e) => {
+              e.stopPropagation(); // Prevent triggering the enlarge event
+              const qty = parseInt(buyQtyInput.value, 10);
+              if (!qty || qty < 1) {
+                setStatus("Invalid buy quantity.", true);
+                return;
+              }
+              if (qty > data.remainingQuantity) {
+                setStatus("Not enough quantity left.", true);
+                return;
+              }
+              if (!isWalletConnected) {
+                setStatus("Please connect your wallet to perform this action.", true);
+                return;
+              }
+              try {
+                setStatus(`Purchasing ${qty} from listing #${id}...`);
+                const totalCost = (BigInt(data.priceWei) * BigInt(qty)).toString();
+                const txObj = contract.methods.purchaseFromListing(id, qty);
+                const gasEstimate = await txObj.estimateGas({ from: userAddress, value: totalCost });
+                const marketGasPrice = await web3.eth.getGasPrice();
+                const receipt = await txObj.send({
+                    from: userAddress,
+                    value: totalCost,
+                    gas: gasEstimate,
+                    gasPrice: marketGasPrice
+                });
+
+                setStatus(`Purchase success! Tx: ${receipt.transactionHash}`);
+                await loadAllListings();
+              } catch (err) {
+                console.error(err);
+                setStatus("Purchase failed: " + err.message, true);
+              }
+            });
+
+            actionDiv.appendChild(buyQtyInput);
+            actionDiv.appendChild(buyBtn);
+
+            // If user is the seller => show Cancel
+            if (isWalletConnected && data.seller.toLowerCase() === userAddress.toLowerCase()) {
+              const cancelBtn = document.createElement("button");
+              cancelBtn.className = "buy-button cancel";
+              cancelBtn.textContent = "Cancel";
+              cancelBtn.addEventListener("click", async (e) => {
+                e.stopPropagation(); // Prevent triggering the enlarge event
+                try {
+                  setStatus(`Canceling listing #${id}...`);
+                  const txObj = contract.methods.cancelListing(id);
+                  const gasEstimate = await txObj.estimateGas({ from: userAddress });
+                  const marketGasPrice = await web3.eth.getGasPrice();
+                  const receipt = await txObj.send({
+                      from: userAddress,
+                      gas: gasEstimate,
+                      gasPrice: marketGasPrice
+                  });
+                  
+                  setStatus(`Listing #${id} canceled! Tx: ${receipt.transactionHash}`);
+                  await loadAllListings();
+                } catch (err) {
+                  console.error(err);
+                  setStatus("Cancel failed: " + err.message, true);
+                }
+              });
+              actionDiv.appendChild(cancelBtn);
+            }
+
+            // Build final structure
+            li.appendChild(daoNumberDiv);
+            li.appendChild(daoHeaderDiv);
+            li.appendChild(actionDiv);
+
+            listingsUL.appendChild(li);
+          }
+
+          if (listingCounter === 0) {
+            const emptyLi = document.createElement("li");
+            emptyLi.className = "dao-item";
+            emptyLi.textContent = "No active listings at the moment.";
+            listingsUL.appendChild(emptyLi);
+          }
+
+          setStatus("Listings loaded!");
+          listingsLoading.style.display = "none";
+        }
+
+        // =========================
+        // 5. Overlay Logic
+        // =========================
+
+        const overlay = document.getElementById("modelOverlay");
+        const overlayClose = document.getElementById("modelOverlayClose");
+        const bigModelViewer = document.getElementById("bigModelViewer");
+        const zoomSlider = document.getElementById("zoomSlider");
+        let currentFov = 50;
+
+        // Event delegation for mini-model clicks in Active Listings
+        const listingsUL = document.getElementById("listingsUL");
+        listingsUL.addEventListener("click", (event) => {
+          const miniModel = event.target.closest('.mini-model');
+          if (miniModel && miniModel.src) {
+            bigModelViewer.setAttribute('src', miniModel.src);
+            overlay.classList.add('active');
+          }
+        });
+
+        // Prevent clicks on action buttons from triggering the enlarge event
+        listingsUL.addEventListener("click", (event) => {
+          if (event.target.closest('.buy-button') || event.target.closest('.buy-quantity-input')) {
+            event.stopPropagation();
+          }
+        });
+
+        // Close overlay
+        overlayClose.addEventListener("click", () => {
+          overlay.classList.remove("active");
+          bigModelViewer.removeAttribute("src");
+        });
+
+        // Optional: Close overlay by clicking outside the model
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) {
+            overlay.classList.remove("active");
+            bigModelViewer.removeAttribute("src");
+          }
+        });
+
+        // Zoom slider functionality
+        zoomSlider.addEventListener("input", (evt) => {
+          currentFov = parseInt(evt.target.value, 10);
+          bigModelViewer.setAttribute("field-of-view", `${currentFov}deg`);
+        });
+
+        // =========================
+        // 6. Create New Listing Logic
+        // =========================
+
+        const listBtn = document.getElementById("listNftButton");
+        listBtn.addEventListener("click", async () => {
+          setStatus("Preparing listing...");
+          const selectedTokenId = document.getElementById("selectedTokenId").value;
+          const qtyStr = (document.getElementById("quantityInput").value || "").trim();
+          const priceEthStr = (document.getElementById("priceInput").value || "").trim();
+
+          if (!selectedTokenId || !qtyStr || !priceEthStr) {
+            setStatus("Please select a token, quantity, and price.", true);
+            return;
+          }
+          const tokenId = parseInt(selectedTokenId, 10);
+          const quantity = parseInt(qtyStr, 10);
+          if (isNaN(tokenId) || tokenId < 0) {
+            setStatus("Invalid token ID.", true);
+            return;
+          }
+          if (isNaN(quantity) || quantity < 1) {
+            setStatus("Quantity must be >= 1", true);
+            return;
+          }
+          let priceWei;
+          try {
+            priceWei = web3.utils.toWei(priceEthStr, "ether");
+          } catch (err) {
+            setStatus("Invalid price: " + err.message, true);
+            return;
+          }
+
+          // Check balance
+          setStatus("Checking balance...");
+          let bal;
+          try {
+            bal = await contract.methods.balanceOf(userAddress, tokenId).call();
+            bal = parseInt(bal, 10);
+            if (bal < quantity) {
+              setStatus("Insufficient token balance for listing.", true);
+              return;
+            }
+          } catch (err) {
+            setStatus("Error checking balance: " + err.message, true);
+            return;
+          }
+
+          // Re-fetch listings
+          await buildListingsFromEvents();
+
+          // Check how many user has already listed for this token ID
+          let sumActive = 0;
+          for (const lId in listingsData) {
+            const listing = listingsData[lId];
+            if (
+              listing.active &&
+              listing.seller.toLowerCase() === userAddress.toLowerCase() &&
+              parseInt(listing.tokenId, 10) === tokenId
+            ) {
+              sumActive += listing.remainingQuantity;
+            }
+          }
+
+          if (sumActive + quantity > bal) {
+            setStatus("You already have an active listing covering all your tokens for that ID.", true);
+            return;
+          }
+
+          // Check isApprovedForAll => if not, request it
+          setStatus("Checking approval...");
+          try {
+            const isApproved = await contract.methods.isApprovedForAll(userAddress, contractAddress).call();
+            if (!isApproved) {
+              setStatus("Requesting approval in MetaMask...");
+              const txObj = contract.methods.setApprovalForAll(contractAddress, true);
+              const gas = await txObj.estimateGas({ from: userAddress });
+              const marketGasPrice = await web3.eth.getGasPrice(); // Fetch the current market gas price
+              await txObj.send({ from: userAddress, gas, gasPrice: marketGasPrice });              
+              setStatus("Approved! Creating listing...");
+            } else {
+              setStatus("Already approved. Creating listing...");
+            }
+          } catch (err) {
+            setStatus("Error requesting approval: " + err.message, true);
+            return;
+          }
+
+          // createListing
+          try {
+            const txObj = contract.methods.createListing(tokenId, quantity, priceWei);
+            const gas = await txObj.estimateGas({ from: userAddress });
+            const marketGasPrice = await web3.eth.getGasPrice();
+            const receipt = await txObj.send({
+                from: userAddress,
+                gas: gas,
+                gasPrice: marketGasPrice
+            });
+            
+            setStatus(`Listing created! Tx: ${receipt.transactionHash}`);
+            await loadAllListings();
+            // Reset selection
+            resetGlbSelection();
+          } catch (err) {
+            setStatus("createListing failed: " + err.message, true);
+          }
+        });
+
+        // =========================
+        // 7. GLB Selection Logic
+        // =========================
+
+        const glbSelectionDiv = document.querySelector(".glb-selection");
+
+        // Function to reset GLB selection
+        function resetGlbSelection() {
+          const glbItems = document.querySelectorAll(".glb-item");
+          glbItems.forEach(item => item.classList.remove("selected"));
+          document.getElementById("selectedTokenId").value = "";
+        }
+
+        // Function to load and display owned tokens as GLBs
+        async function loadOwnedTokens() {
+          if (!isWalletConnected) {
+            glbSelectionDiv.innerHTML += "<div>Please connect your wallet to list your tokens.</div>";
+            setStatus("Wallet not connected. Connect your wallet to list tokens.");
+            return;
+          }
+
+          setStatus("Loading your tokens...");
+          const ownedTokens = [];
+
+          // Assuming serverAnimationMap contains all possible token IDs
+          const allTokenIds = Object.keys(serverAnimationMap).map(id => parseInt(id, 10));
+
+          // Fetch balance for each token ID
+          try {
+            const balancePromises = allTokenIds.map(tokenId => contract.methods.balanceOf(userAddress, tokenId).call());
+            const balances = await Promise.all(balancePromises);
+
+            balances.forEach((balance, index) => {
+              if (parseInt(balance, 10) > 0) {
+                ownedTokens.push(allTokenIds[index]);
+              }
+            });
+          } catch (err) {
+            console.error("Error fetching balances:", err);
+            setStatus("Error fetching token balances.", true);
+            return;
+          }
+
+          if (ownedTokens.length === 0) {
+            glbSelectionDiv.innerHTML += "<div>You do not own any tokens to list.</div>";
+            setStatus("No tokens found.");
+            return;
+          }
+
+          // Display owned tokens as GLB items
+          ownedTokens.forEach(tokenId => {
+            const glbItem = document.createElement("div");
+            glbItem.className = "glb-item";
+            glbItem.dataset.tokenId = tokenId;
+
+            const modelViewer = document.createElement("model-viewer");
+            modelViewer.setAttribute("src", serverAnimationMap[String(tokenId)]);
+            modelViewer.setAttribute("camera-controls", "");
+            modelViewer.setAttribute("auto-rotate", "");
+            modelViewer.setAttribute("shadow-intensity", "1");
+            modelViewer.setAttribute("alt", `Token ID ${tokenId}`);
+            modelViewer.style.width = "100%";
+            modelViewer.style.height = "100%";
+
+            // Load the contributor names dictionary from Django
+            const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
+
+            const contributorName = contributorNamesMap[tokenId] || "Unknown";
+
+            const tokenIdLabel = document.createElement("div");
+            tokenIdLabel.className = "token-id";
+            tokenIdLabel.textContent = `ID: ${tokenId} - ${contributorName}`;
+
+
+            glbItem.appendChild(modelViewer);
+            glbItem.appendChild(tokenIdLabel);
+
+            // Click event to select token and enlarge
+            glbItem.addEventListener("click", () => {
+              // Remove 'selected' class from all items
+              document.querySelectorAll(".glb-item").forEach(item => item.classList.remove("selected"));
+              // Add 'selected' class to clicked item
+              glbItem.classList.add("selected");
+              // Set the selected token ID
+              document.getElementById("selectedTokenId").value = tokenId;
+              setStatus(`Selected Token ID: ${tokenId}`);
+
+              // Enlarge the selected model
+              if (modelViewer.src) {
+                bigModelViewer.setAttribute('src', modelViewer.src);
+                overlay.classList.add('active');
+              }
+            });
+
+            glbSelectionDiv.appendChild(glbItem);
+          });
+
+          setStatus("Tokens loaded. Please select a token to list.");
+        }
+
+        // =========================
+        // 8. Initialize the Application
+        // =========================
+
+        async function initialize() {
+          // Load owned tokens if wallet is connected
+          await loadOwnedTokens();
+
+          // Load all active listings
+          await loadAllListings();
+
+          // Optionally, set up listeners for new events to dynamically update listings
+          // This can be implemented using WebSockets or polling, depending on the provider
+        }
+
+        // Start the application
+        initialize();
+
+        // =========================
+        // 9. Error Handling and Enhancements
+        // =========================
+        // Additional error handling can be implemented here as needed.
+
+      });
+      
+    </script>
+
+</body>
+</html>
