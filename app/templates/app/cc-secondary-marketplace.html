@@ -1194,602 +1194,677 @@
     ];
     </script>
 
-    <!-- Simplified JavaScript for Enlarge Functionality and Listings Management -->
-    <script>
-      document.addEventListener('DOMContentLoaded', async () => {
-        console.log("Secondary Market with GLB Selection and Active Listings loaded.");
+<!-- Simplified JavaScript for Enlarge Functionality and Listings Management -->
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Secondary Market with GLB Selection and Active Listings loaded.");
 
-        // =========================
-        // 1. Web3 Initialization
-        // =========================
+    // =========================
+    // 1. Web3 Setup
+    // =========================
 
-        // RARI Chain RPC URLs
-        const rpcUrl = "https://mainnet.rpc.rarichain.org/http"; // Replace with actual RARI RPC URL
-        const wsRpcUrl = "wss://mainnet.rpc.rarichain.org/ws"; // Replace with actual RARI WS RPC URL if needed
+    // 1A. A dedicated read-only Web3 to RARI Chain (always used for reading data):
+    const rariRpcUrl = "https://mainnet.rpc.rarichain.org/http";
+    const readWeb3 = new Web3(new Web3.providers.HttpProvider(rariRpcUrl));
+    // The same contract address, but connected to readWeb3
+    const contractAddress = "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277";
+    const readContract = new readWeb3.eth.Contract(contributorCardsAbi, contractAddress);
 
-        let web3;
-        let contract;
-        let userAddress = null;
-        let isWalletConnected = false;
+    // 1B. A wallet-based web3 (optional, only used for writing if user has a wallet)
+    let web3 = null;
+    let contract = null;
+    let userAddress = null;
+    let isWalletConnected = false;
 
-        if (typeof window.ethereum !== 'undefined') {
-          // User has a wallet, use it as the provider
-          web3 = new Web3(window.ethereum);
+    if (typeof window.ethereum !== 'undefined') {
+      web3 = new Web3(window.ethereum);
+      contract = new web3.eth.Contract(contributorCardsAbi, contractAddress);
+
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts.length > 0) {
+          userAddress = accounts[0];
+          isWalletConnected = true;
+          console.log("Wallet connected:", userAddress);
+        }
+      } catch (err) {
+        console.error("User denied account access:", err);
+        // We'll stay read-only for queries
+      }
+    }
+
+    // If user has no wallet, or user denied, we do NOT overwrite readWeb3 / readContract.
+    // We'll still show listings from readContract.
+
+    // =========================
+    // 2. Helper Functions
+    // =========================
+
+    const statusEl = document.getElementById("statusMessage");
+    const listingsLoading = document.getElementById("listingsLoading");
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.style.color = isError ? "red" : "green";
+      console.log(msg);
+    }
+
+    // RARI Chain parameters for "wallet_switchEthereumChain" or "wallet_addEthereumChain"
+    const desiredChainIdDecimal = 1380012617; // decimal
+    const desiredChainIdHex = "0x52415249";   // hex
+
+    // Force user to RARI Chain for any transaction
+    async function ensureOnRariChain() {
+      if (!web3 || !window.ethereum) {
+        throw new Error("No wallet connected. Please install MetaMask or another web3 wallet.");
+      }
+      try {
+        const currentChainId = await web3.eth.getChainId();
+        if (currentChainId !== desiredChainIdDecimal) {
+          // Try switching
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: desiredChainIdHex }]
+          });
+        }
+      } catch (switchError) {
+        // If chain is not added, add it
+        if (switchError.code === 4902) {
           try {
-            // Request account access
-            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-            if (accounts.length > 0) {
-              userAddress = accounts[0];
-              isWalletConnected = true;
-              console.log("Connected using window.ethereum");
-            }
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: desiredChainIdHex,
+                chainName: "RARI Chain Mainnet",
+                nativeCurrency: {
+                  name: "Ethereum",
+                  symbol: "ETH",
+                  decimals: 18
+                },
+                rpcUrls: [rariRpcUrl],
+                blockExplorerUrls: ["https://mainnet.explorer.rarichain.org"]
+              }]
+            });
+            // Then switch
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: desiredChainIdHex }]
+            });
+          } catch (addError) {
+            console.error("Failed to add RARI chain:", addError);
+            throw new Error("Failed to add RARI Chain to your wallet.");
+          }
+        } else {
+          console.error("Failed to switch chain:", switchError);
+          throw new Error("Failed to switch to RARI Chain. Please try manually in MetaMask.");
+        }
+      }
+    }
+
+    // For address display
+    function truncateAddress(address) {
+      if (!address) return "";
+      return address.slice(0, 6) + "..." + address.slice(-4);
+    }
+
+    // Convert server-side tokenId -> animation_url
+    const serverAnimationMap = window.serverSideAnimationUrls || {};
+
+    // =========================
+    // 3. Build Listings from Events (READ-ONLY)
+    // =========================
+
+    // We'll store listings in a local object
+    const listingsData = {};
+
+    async function buildListingsFromEvents() {
+      const fromBlock = 0; // or your deployment block
+      const toBlock = "latest";
+
+      try {
+        // Always read from readContract, so it doesn't matter if user is on the wrong chain
+        const createdEvents = await readContract.getPastEvents("ListingCreated", { fromBlock, toBlock });
+        const cancelledEvents = await readContract.getPastEvents("ListingCancelled", { fromBlock, toBlock });
+        const priceUpdatedEvents = await readContract.getPastEvents("ListingPriceUpdated", { fromBlock, toBlock });
+        const purchasedEvents = await readContract.getPastEvents("ListingPurchased", { fromBlock, toBlock });
+
+        // Reset local state
+        for (const k in listingsData) {
+          delete listingsData[k];
+        }
+
+        // Created
+        createdEvents.forEach(ev => {
+          const rv = ev.returnValues;
+          listingsData[rv.listingId] = {
+            listingId: rv.listingId,
+            seller: rv.seller,
+            tokenId: parseInt(rv.tokenId, 10),
+            remainingQuantity: parseInt(rv.originalQuantity, 10),
+            priceWei: rv.pricePerToken,
+            active: true
+          };
+        });
+
+        // Cancelled => active=false
+        cancelledEvents.forEach(ev => {
+          const listingId = ev.returnValues.listingId;
+          if (listingsData[listingId]) {
+            listingsData[listingId].active = false;
+          }
+        });
+
+        // Price updated
+        priceUpdatedEvents.forEach(ev => {
+          const rv = ev.returnValues;
+          if (listingsData[rv.listingId] && listingsData[rv.listingId].active) {
+            listingsData[rv.listingId].priceWei = rv.newPrice;
+          }
+        });
+
+        // Purchased => reduce quantity
+        purchasedEvents.forEach(ev => {
+          const rv = ev.returnValues;
+          const listingId = rv.listingId;
+          if (!listingsData[listingId] || !listingsData[listingId].active) return;
+
+          const qty = parseInt(rv.quantity, 10);
+          listingsData[listingId].remainingQuantity -= qty;
+          if (listingsData[listingId].remainingQuantity <= 0) {
+            listingsData[listingId].active = false;
+          }
+        });
+      } catch (err) {
+        console.error("Error fetching listing events:", err);
+        setStatus("Error fetching listings from RARI Chain.", true);
+      }
+    }
+
+    // =========================
+    // 4. Render Listings
+    // =========================
+
+    async function loadAllListings() {
+      listingsLoading.style.display = "block";
+      setStatus("Loading listings from RARI Chain...");
+
+      await buildListingsFromEvents();
+
+      const listingsUL = document.getElementById("listingsUL");
+      listingsUL.innerHTML = "";
+
+      const allIds = Object.keys(listingsData).sort((a, b) => parseInt(a) - parseInt(b));
+      let listingCounter = 0;
+
+      for (const id of allIds) {
+        const data = listingsData[id];
+        if (!data.active) continue;
+        if (data.remainingQuantity <= 0) continue;
+
+        listingCounter++;
+
+        // Build <li>
+        const li = document.createElement("li");
+        li.className = "dao-item";
+
+        // Left number
+        const daoNumberDiv = document.createElement("div");
+        daoNumberDiv.className = "dao-number";
+        daoNumberDiv.innerHTML = `<span>${listingCounter}.</span>`;
+
+        // dao-header
+        const daoHeaderDiv = document.createElement("div");
+        daoHeaderDiv.className = "dao-header";
+
+        // Model viewer
+        const tokenIdStr = String(data.tokenId);
+        const animationUrl = serverAnimationMap[tokenIdStr] || "";
+
+        const modelViewer = document.createElement("model-viewer");
+        modelViewer.className = "mini-model";
+        modelViewer.setAttribute("camera-controls", "");
+        modelViewer.setAttribute("auto-rotate", "");
+        modelViewer.style.width = "100px";
+        modelViewer.style.height = "100px";
+        modelViewer.style.cursor = "pointer";
+        modelViewer.alt = "Contributor Card Preview";
+
+        if (animationUrl) {
+          modelViewer.src = animationUrl;
+        }
+
+        // "Click to Enlarge" hint (optional text)
+        const enlargeHint = document.createElement("div");
+        enlargeHint.className = "enlarge-hint";
+        enlargeHint.textContent = "";
+
+        // dao-metrics
+        const daoMetricsDiv = document.createElement("div");
+        daoMetricsDiv.className = "dao-metrics";
+        const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
+
+        const contributorName = contributorNamesMap[data.tokenId] || "Unknown";
+        const priceEth = readWeb3.utils.fromWei(String(data.priceWei), "ether");
+
+        daoMetricsDiv.innerHTML = `
+          <div>Contributor: ${contributorName}</div>
+          <div>Seller: ${truncateAddress(data.seller)}</div>
+          <div>Token ID: ${data.tokenId}</div>
+          <div>Remaining: ${data.remainingQuantity}</div>
+          <div>Price: ${priceEth} ETH</div>
+        `;
+
+        daoHeaderDiv.appendChild(modelViewer);
+        daoHeaderDiv.appendChild(enlargeHint);
+        daoHeaderDiv.appendChild(daoMetricsDiv);
+
+        // Buy/cancel area
+        const actionDiv = document.createElement("div");
+
+        // partial-buy input
+        const buyQtyInput = document.createElement("input");
+        buyQtyInput.type = "number";
+        buyQtyInput.className = "buy-quantity-input";
+        buyQtyInput.min = "1";
+        buyQtyInput.max = data.remainingQuantity;
+        buyQtyInput.value = "1";
+        actionDiv.appendChild(buyQtyInput);
+
+        // buy button
+        const buyBtn = document.createElement("button");
+        buyBtn.className = "buy-button";
+        buyBtn.textContent = "Buy";
+        actionDiv.appendChild(buyBtn);
+
+        // Cancel button if user is seller
+        let cancelBtn = null;
+        if (
+          isWalletConnected &&
+          data.seller.toLowerCase() === (userAddress || "").toLowerCase()
+        ) {
+          cancelBtn = document.createElement("button");
+          cancelBtn.className = "buy-button cancel";
+          cancelBtn.textContent = "Cancel";
+          actionDiv.appendChild(cancelBtn);
+        }
+
+        // Build final structure
+        li.appendChild(daoNumberDiv);
+        li.appendChild(daoHeaderDiv);
+        li.appendChild(actionDiv);
+        listingsUL.appendChild(li);
+
+        // ==================
+        //  Buy Button Logic
+        // ==================
+        buyBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const qty = parseInt(buyQtyInput.value, 10);
+          if (!qty || qty < 1) {
+            setStatus("Invalid quantity.", true);
+            return;
+          }
+          if (qty > data.remainingQuantity) {
+            setStatus("Not enough quantity.", true);
+            return;
+          }
+          if (!isWalletConnected) {
+            setStatus("Please connect your wallet to buy.", true);
+            return;
+          }
+          // 1) Ensure on RARI
+          try {
+            await ensureOnRariChain();
+          } catch (chainErr) {
+            setStatus(chainErr.message, true);
+            return;
+          }
+
+          // 2) Send TX
+          try {
+            setStatus(`Buying ${qty} from listing #${id}...`);
+            const totalCost = (BigInt(data.priceWei) * BigInt(qty)).toString();
+            // must use the wallet-based contract
+            const txObj = contract.methods.purchaseFromListing(id, qty);
+
+            const gasEstimate = await txObj.estimateGas({
+              from: userAddress,
+              value: totalCost
+            });
+            const gasPrice = await web3.eth.getGasPrice();
+
+            const receipt = await txObj.send({
+              from: userAddress,
+              value: totalCost,
+              gas: gasEstimate,
+              gasPrice
+            });
+            setStatus(`Purchase success! Tx: ${receipt.transactionHash}`);
+
+            // Reload listings
+            await loadAllListings();
           } catch (err) {
-            console.error("User denied account access:", err);
-            // Proceed without wallet (read-only)
+            console.error("Purchase failed:", err);
+            setStatus("Purchase failed: " + err.message, true);
           }
-        } 
+        });
 
-        if (!web3) {
-          // Fallback to RARI Chain's read-only provider
-          const readOnlyProvider = new Web3.providers.HttpProvider(rpcUrl);
-          web3 = new Web3(readOnlyProvider);
-          console.log("Connected using RARI Chain read-only provider");
-        }
-
-        // Initialize contract instance
-        const contractAddress = "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277"; // Replace with your contract address
-        contract = new web3.eth.Contract(contributorCardsAbi, contractAddress);
-
-        // =========================
-        // 2. Helper Functions
-        // =========================
-
-        const statusEl = document.getElementById("statusMessage");
-        const listingsLoading = document.getElementById("listingsLoading");
-
-        function setStatus(msg, isError = false) {
-          statusEl.textContent = msg;
-          statusEl.style.color = isError ? "red" : "green";
-          console.log(msg);
-        }
-
-        // Convert server-side tokenId -> animation_url dict
-        const serverAnimationMap = window.serverSideAnimationUrls || {};
-
-        // We'll store listings in memory
-        const listingsData = {};
-
-        // Truncate address for display
-        function truncateAddress(address) {
-          if (!address) return "";
-          return address.slice(0, 6) + "..." + address.slice(-4);
-        }
-
-        // =========================
-        // 3. Build Listing State
-        // =========================
-
-        async function buildListingsFromEvents() {
-          const fromBlock = 0; // Adjust as needed
-          const toBlock = "latest";
-
-          try {
-            const createdEvents = await contract.getPastEvents("ListingCreated", { fromBlock, toBlock });
-            const cancelledEvents = await contract.getPastEvents("ListingCancelled", { fromBlock, toBlock });
-            const priceUpdatedEvents = await contract.getPastEvents("ListingPriceUpdated", { fromBlock, toBlock });
-            const purchasedEvents = await contract.getPastEvents("ListingPurchased", { fromBlock, toBlock });
-
-            // Reset local memory
-            for (const k in listingsData) {
-              delete listingsData[k];
+        // =====================
+        // Cancel Button Logic
+        // =====================
+        if (cancelBtn) {
+          cancelBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (!isWalletConnected) {
+              setStatus("Please connect your wallet to cancel.", true);
+              return;
+            }
+            // 1) Ensure on RARI
+            try {
+              await ensureOnRariChain();
+            } catch (chainErr) {
+              setStatus(chainErr.message, true);
+              return;
             }
 
-            // Created
-            createdEvents.forEach(ev => {
-              const rv = ev.returnValues;
-              listingsData[rv.listingId] = {
-                listingId: rv.listingId,
-                seller: rv.seller,
-                tokenId: rv.tokenId,
-                remainingQuantity: parseInt(rv.originalQuantity, 10),
-                priceWei: rv.pricePerToken,
-                active: true
-              };
-            });
+            // 2) Send TX
+            try {
+              setStatus(`Canceling listing #${id}...`);
+              const txObj = contract.methods.cancelListing(id);
 
-            // Cancelled => active = false
-            cancelledEvents.forEach(ev => {
-              const id = ev.returnValues.listingId;
-              if (listingsData[id]) {
-                listingsData[id].active = false;
-              }
-            });
+              const gasEstimate = await txObj.estimateGas({ from: userAddress });
+              const gasPrice = await web3.eth.getGasPrice();
 
-            // PriceUpdated => set new price
-            priceUpdatedEvents.forEach(ev => {
-              const rv = ev.returnValues;
-              if (listingsData[rv.listingId] && listingsData[rv.listingId].active) {
-                listingsData[rv.listingId].priceWei = rv.newPrice;
-              }
-            });
-
-            // Purchased => reduce quantity
-            purchasedEvents.forEach(ev => {
-              const rv = ev.returnValues;
-              const listingId = rv.listingId;
-              if (!listingsData[listingId] || !listingsData[listingId].active) return;
-
-              const qty = parseInt(rv.quantity, 10);
-              listingsData[listingId].remainingQuantity -= qty;
-              if (listingsData[listingId].remainingQuantity <= 0) {
-                listingsData[listingId].active = false;
-              }
-            });
-          } catch (error) {
-            console.error("Error fetching events:", error);
-            setStatus("Error fetching listings from the blockchain.", true);
-          }
-        }
-
-        // =========================
-        // 4. Render Listings
-        // =========================
-
-        async function loadAllListings() {
-          listingsLoading.style.display = "block";
-          setStatus("Loading listings from blockchain...");
-          await buildListingsFromEvents();
-
-          const listingsUL = document.getElementById("listingsUL");
-          listingsUL.innerHTML = "";
-
-          // Sort listing IDs numerically
-          const allIds = Object.keys(listingsData).sort((a, b) => parseInt(a) - parseInt(b));
-          let listingCounter = 0;
-
-          for (const id of allIds) {
-            const data = listingsData[id];
-            if (!data.active) continue;
-            if (data.remainingQuantity <= 0) continue;
-
-            listingCounter++;
-
-            // <li class="dao-item">
-            const li = document.createElement("li");
-            li.className = "dao-item";
-
-            // Left number
-            const daoNumberDiv = document.createElement("div");
-            daoNumberDiv.className = "dao-number";
-            daoNumberDiv.innerHTML = `<span>${listingCounter}.</span>`;
-
-            // dao-header
-            const daoHeaderDiv = document.createElement("div");
-            daoHeaderDiv.className = "dao-header";
-
-            // Model viewer
-            const tokenIdStr = String(data.tokenId);
-            const animationUrl = serverAnimationMap[tokenIdStr] || "";
-
-            const modelViewer = document.createElement("model-viewer");
-            modelViewer.className = "mini-model";
-            modelViewer.setAttribute("camera-controls", "");
-            modelViewer.setAttribute("auto-rotate", "");
-            modelViewer.style.width = "100px";
-            modelViewer.style.height = "100px";
-            modelViewer.style.cursor = "pointer";
-            modelViewer.alt = "Contributor Card Preview";
-            if (animationUrl) {
-              modelViewer.src = animationUrl;
-            }
-
-            // "Click to Enlarge" hint
-            const enlargeHint = document.createElement("div");
-            enlargeHint.className = "enlarge-hint";
-            enlargeHint.textContent = "";
-
-            // dao-metrics
-            const daoMetricsDiv = document.createElement("div");
-            daoMetricsDiv.className = "dao-metrics";
-            // Load the contributor names dictionary from Django
-            const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
-
-            daoMetricsDiv.innerHTML = `
-              <div>Contributor: ${contributorNamesMap[data.tokenId] || "Unknown"}</div> <!-- ✅ Now it shows correct contributor name -->
-              <div>Seller: ${truncateAddress(data.seller)}</div>
-              <div>Token ID: ${data.tokenId}</div>
-              <div>Remaining: ${data.remainingQuantity}</div>
-              <div>Price: ${web3.utils.fromWei(data.priceWei.toString(), "ether")} ETH</div>
-            `;
-
-
-
-            daoHeaderDiv.appendChild(modelViewer);
-            daoHeaderDiv.appendChild(enlargeHint);
-            daoHeaderDiv.appendChild(daoMetricsDiv);
-
-            // Buy/cancel area
-            const actionDiv = document.createElement("div");
-
-            // partial buy input
-            const buyQtyInput = document.createElement("input");
-            buyQtyInput.type = "number";
-            buyQtyInput.className = "buy-quantity-input";
-            buyQtyInput.min = "1";
-            buyQtyInput.max = data.remainingQuantity.toString();
-            buyQtyInput.value = "1";
-
-            // buy button
-            const buyBtn = document.createElement("button");
-            buyBtn.className = "buy-button";
-            buyBtn.textContent = "Buy";
-            buyBtn.addEventListener("click", async (e) => {
-              e.stopPropagation(); // Prevent triggering the enlarge event
-              const qty = parseInt(buyQtyInput.value, 10);
-              if (!qty || qty < 1) {
-                setStatus("Invalid buy quantity.", true);
-                return;
-              }
-              if (qty > data.remainingQuantity) {
-                setStatus("Not enough quantity left.", true);
-                return;
-              }
-              if (!isWalletConnected) {
-                setStatus("Please connect your wallet to perform this action.", true);
-                return;
-              }
-              try {
-                setStatus(`Purchasing ${qty} from listing #${id}...`);
-                const totalCost = (BigInt(data.priceWei) * BigInt(qty)).toString();
-                const txObj = contract.methods.purchaseFromListing(id, qty);
-                const gasEstimate = await txObj.estimateGas({ from: userAddress, value: totalCost });
-                const marketGasPrice = await web3.eth.getGasPrice();
-                const receipt = await txObj.send({
-                    from: userAddress,
-                    value: totalCost,
-                    gas: gasEstimate,
-                    gasPrice: marketGasPrice
-                });
-
-                setStatus(`Purchase success! Tx: ${receipt.transactionHash}`);
-                await loadAllListings();
-              } catch (err) {
-                console.error(err);
-                setStatus("Purchase failed: " + err.message, true);
-              }
-            });
-
-            actionDiv.appendChild(buyQtyInput);
-            actionDiv.appendChild(buyBtn);
-
-            // If user is the seller => show Cancel
-            if (isWalletConnected && data.seller.toLowerCase() === userAddress.toLowerCase()) {
-              const cancelBtn = document.createElement("button");
-              cancelBtn.className = "buy-button cancel";
-              cancelBtn.textContent = "Cancel";
-              cancelBtn.addEventListener("click", async (e) => {
-                e.stopPropagation(); // Prevent triggering the enlarge event
-                try {
-                  setStatus(`Canceling listing #${id}...`);
-                  const txObj = contract.methods.cancelListing(id);
-                  const gasEstimate = await txObj.estimateGas({ from: userAddress });
-                  const marketGasPrice = await web3.eth.getGasPrice();
-                  const receipt = await txObj.send({
-                      from: userAddress,
-                      gas: gasEstimate,
-                      gasPrice: marketGasPrice
-                  });
-                  
-                  setStatus(`Listing #${id} canceled! Tx: ${receipt.transactionHash}`);
-                  await loadAllListings();
-                } catch (err) {
-                  console.error(err);
-                  setStatus("Cancel failed: " + err.message, true);
-                }
+              const receipt = await txObj.send({
+                from: userAddress,
+                gas: gasEstimate,
+                gasPrice
               });
-              actionDiv.appendChild(cancelBtn);
+              setStatus(`Listing #${id} canceled! Tx: ${receipt.transactionHash}`);
+
+              // Reload listings
+              await loadAllListings();
+            } catch (err) {
+              console.error("Cancel failed:", err);
+              setStatus("Cancel failed: " + err.message, true);
             }
-
-            // Build final structure
-            li.appendChild(daoNumberDiv);
-            li.appendChild(daoHeaderDiv);
-            li.appendChild(actionDiv);
-
-            listingsUL.appendChild(li);
-          }
-
-          if (listingCounter === 0) {
-            const emptyLi = document.createElement("li");
-            emptyLi.className = "dao-item";
-            emptyLi.textContent = "No active listings at the moment.";
-            listingsUL.appendChild(emptyLi);
-          }
-
-          setStatus("Listings loaded!");
-          listingsLoading.style.display = "none";
+          });
         }
+      }
 
-        // =========================
-        // 5. Overlay Logic
-        // =========================
+      if (listingCounter === 0) {
+        const emptyLi = document.createElement("li");
+        emptyLi.className = "dao-item";
+        emptyLi.textContent = "No active listings at the moment.";
+        listingsUL.appendChild(emptyLi);
+      }
 
-        const overlay = document.getElementById("modelOverlay");
-        const overlayClose = document.getElementById("modelOverlayClose");
-        const bigModelViewer = document.getElementById("bigModelViewer");
-        const zoomSlider = document.getElementById("zoomSlider");
-        let currentFov = 50;
+      setStatus("Listings loaded!");
+      listingsLoading.style.display = "none";
+    }
 
-        // Event delegation for mini-model clicks in Active Listings
-        const listingsUL = document.getElementById("listingsUL");
-        listingsUL.addEventListener("click", (event) => {
-          const miniModel = event.target.closest('.mini-model');
-          if (miniModel && miniModel.src) {
-            bigModelViewer.setAttribute('src', miniModel.src);
+    // =========================
+    // 5. Overlay Logic (Enlarge Model)
+    // =========================
+
+    const overlay = document.getElementById("modelOverlay");
+    const overlayClose = document.getElementById("modelOverlayClose");
+    const bigModelViewer = document.getElementById("bigModelViewer");
+    const zoomSlider = document.getElementById("zoomSlider");
+    let currentFov = 50;
+
+    // Enlarge a listing model
+    const listingsUL = document.getElementById("listingsUL");
+    listingsUL.addEventListener("click", (event) => {
+      const miniModel = event.target.closest('.mini-model');
+      if (miniModel && miniModel.src) {
+        bigModelViewer.setAttribute('src', miniModel.src);
+        overlay.classList.add('active');
+      }
+    });
+    // Prevent click collisions
+    listingsUL.addEventListener("click", (event) => {
+      if (event.target.closest('.buy-button') || event.target.closest('.buy-quantity-input')) {
+        event.stopPropagation();
+      }
+    });
+
+    overlayClose.addEventListener("click", () => {
+      overlay.classList.remove('active');
+      bigModelViewer.removeAttribute('src');
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('active');
+        bigModelViewer.removeAttribute('src');
+      }
+    });
+    zoomSlider.addEventListener("input", (evt) => {
+      currentFov = parseInt(evt.target.value, 10);
+      bigModelViewer.setAttribute("field-of-view", `${currentFov}deg`);
+    });
+
+    // =========================
+    // 6. Create New Listing
+    // =========================
+
+    const listBtn = document.getElementById("listNftButton");
+    listBtn.addEventListener("click", async () => {
+      setStatus("Preparing listing...");
+      if (!isWalletConnected) {
+        setStatus("Please connect your wallet to list NFT.", true);
+        return;
+      }
+
+      // 1) ensure on RARI
+      try {
+        await ensureOnRariChain();
+      } catch (chainErr) {
+        setStatus(chainErr.message, true);
+        return;
+      }
+
+      // 2) read form data
+      const selectedTokenId = document.getElementById("selectedTokenId").value;
+      const qtyStr = (document.getElementById("quantityInput").value || "").trim();
+      const priceEthStr = (document.getElementById("priceInput").value || "").trim();
+
+      if (!selectedTokenId || !qtyStr || !priceEthStr) {
+        setStatus("Please select a token, quantity, and price.", true);
+        return;
+      }
+      const tokenId = parseInt(selectedTokenId, 10);
+      const quantity = parseInt(qtyStr, 10);
+      if (isNaN(tokenId) || isNaN(quantity) || quantity < 1) {
+        setStatus("Invalid token ID or quantity.", true);
+        return;
+      }
+      let priceWei;
+      try {
+        priceWei = web3.utils.toWei(priceEthStr, "ether");
+      } catch (err) {
+        setStatus("Invalid price: " + err.message, true);
+        return;
+      }
+
+      // 3) check user’s balance (read from readContract)
+      setStatus("Checking your token balance on RARI...");
+      try {
+        const bal = await readContract.methods.balanceOf(userAddress, tokenId).call();
+        if (parseInt(bal, 10) < quantity) {
+          setStatus("You do not have enough tokens to list.", true);
+          return;
+        }
+      } catch (err) {
+        setStatus("Failed to check balance: " + err.message, true);
+        return;
+      }
+
+      // 4) check existing listings
+      await buildListingsFromEvents();
+      let sumActive = 0;
+      for (const lId in listingsData) {
+        const listing = listingsData[lId];
+        if (
+          listing.active &&
+          listing.seller.toLowerCase() === userAddress.toLowerCase() &&
+          listing.tokenId === tokenId
+        ) {
+          sumActive += listing.remainingQuantity;
+        }
+      }
+      // If user already listed all, or if they'd exceed their balance
+      // you can do an additional check here if needed
+
+      // 5) check approval
+      setStatus("Checking approval...");
+      try {
+        const isApproved = await readContract.methods.isApprovedForAll(userAddress, contractAddress).call();
+        if (!isApproved) {
+          setStatus("Requesting approval in MetaMask...");
+          const txObj = contract.methods.setApprovalForAll(contractAddress, true);
+          const gas = await txObj.estimateGas({ from: userAddress });
+          const gasPrice = await web3.eth.getGasPrice();
+          await txObj.send({ from: userAddress, gas, gasPrice });
+          setStatus("Approved! Creating listing...");
+        } else {
+          setStatus("Already approved. Creating listing...");
+        }
+      } catch (err) {
+        setStatus("Error requesting approval: " + err.message, true);
+        return;
+      }
+
+      // 6) create the listing
+      try {
+        const txObj = contract.methods.createListing(tokenId, quantity, priceWei);
+        const gas = await txObj.estimateGas({ from: userAddress });
+        const gasPrice = await web3.eth.getGasPrice();
+        const receipt = await txObj.send({
+          from: userAddress,
+          gas,
+          gasPrice
+        });
+        setStatus(`Listing created! Tx: ${receipt.transactionHash}`);
+
+        // reload listings
+        await loadAllListings();
+
+        // reset selection
+        resetGlbSelection();
+      } catch (err) {
+        console.error("createListing failed:", err);
+        setStatus("createListing failed: " + err.message, true);
+      }
+    });
+
+    // =========================
+    // 7. GLB Selection
+    // =========================
+
+    const glbSelectionDiv = document.querySelector(".glb-selection");
+    function resetGlbSelection() {
+      const glbItems = document.querySelectorAll(".glb-item");
+      glbItems.forEach(item => item.classList.remove("selected"));
+      document.getElementById("selectedTokenId").value = "";
+    }
+
+    async function loadOwnedTokens() {
+      // If the user has no wallet, or is not connected, we just skip
+      if (!isWalletConnected) {
+        glbSelectionDiv.innerHTML += "<div>Please connect your wallet to list your tokens.</div>";
+        return;
+      }
+      setStatus("Loading your tokens from RARI...");
+
+      const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
+      const ownedTokens = [];
+
+      // Check which tokenIds the user owns
+      const allTokenIds = Object.keys(serverAnimationMap).map(k => parseInt(k, 10));
+
+      try {
+        // We can read from readContract as well
+        const balancePromises = allTokenIds.map(tokenId =>
+          readContract.methods.balanceOf(userAddress, tokenId).call()
+        );
+        const balances = await Promise.all(balancePromises);
+        balances.forEach((bal, idx) => {
+          if (parseInt(bal, 10) > 0) {
+            ownedTokens.push(allTokenIds[idx]);
+          }
+        });
+      } catch (err) {
+        console.error("Error fetching balances:", err);
+        setStatus("Error fetching your balances from RARI.", true);
+        return;
+      }
+
+      if (ownedTokens.length === 0) {
+        glbSelectionDiv.innerHTML += "<div>You do not own any tokens to list.</div>";
+        setStatus("No tokens found in your wallet (on RARI).");
+        return;
+      }
+
+      // Build the GLB items
+      ownedTokens.forEach(tokenId => {
+        const glbItem = document.createElement("div");
+        glbItem.className = "glb-item";
+        glbItem.dataset.tokenId = tokenId;
+
+        const modelViewer = document.createElement("model-viewer");
+        modelViewer.setAttribute("src", serverAnimationMap[String(tokenId)]);
+        modelViewer.setAttribute("camera-controls", "");
+        modelViewer.setAttribute("auto-rotate", "");
+        modelViewer.setAttribute("shadow-intensity", "1");
+        modelViewer.setAttribute("alt", "TokenID " + tokenId);
+        modelViewer.style.width = "100%";
+        modelViewer.style.height = "100%";
+
+        const contributorName = contributorNamesMap[tokenId] || "Unknown";
+        const tokenIdLabel = document.createElement("div");
+        tokenIdLabel.className = "token-id";
+        tokenIdLabel.textContent = `ID: ${tokenId} - ${contributorName}`;
+
+        glbItem.appendChild(modelViewer);
+        glbItem.appendChild(tokenIdLabel);
+
+        glbItem.addEventListener("click", () => {
+          // Deselect others
+          document.querySelectorAll(".glb-item").forEach(item => item.classList.remove("selected"));
+          glbItem.classList.add("selected");
+          document.getElementById("selectedTokenId").value = tokenId;
+          setStatus(`Selected Token ID: ${tokenId}`);
+
+          // Optionally enlarge
+          if (modelViewer.src) {
+            bigModelViewer.setAttribute('src', modelViewer.src);
             overlay.classList.add('active');
           }
         });
 
-        // Prevent clicks on action buttons from triggering the enlarge event
-        listingsUL.addEventListener("click", (event) => {
-          if (event.target.closest('.buy-button') || event.target.closest('.buy-quantity-input')) {
-            event.stopPropagation();
-          }
-        });
-
-        // Close overlay
-        overlayClose.addEventListener("click", () => {
-          overlay.classList.remove("active");
-          bigModelViewer.removeAttribute("src");
-        });
-
-        // Optional: Close overlay by clicking outside the model
-        overlay.addEventListener("click", (event) => {
-          if (event.target === overlay) {
-            overlay.classList.remove("active");
-            bigModelViewer.removeAttribute("src");
-          }
-        });
-
-        // Zoom slider functionality
-        zoomSlider.addEventListener("input", (evt) => {
-          currentFov = parseInt(evt.target.value, 10);
-          bigModelViewer.setAttribute("field-of-view", `${currentFov}deg`);
-        });
-
-        // =========================
-        // 6. Create New Listing Logic
-        // =========================
-
-        const listBtn = document.getElementById("listNftButton");
-        listBtn.addEventListener("click", async () => {
-          setStatus("Preparing listing...");
-          const selectedTokenId = document.getElementById("selectedTokenId").value;
-          const qtyStr = (document.getElementById("quantityInput").value || "").trim();
-          const priceEthStr = (document.getElementById("priceInput").value || "").trim();
-
-          if (!selectedTokenId || !qtyStr || !priceEthStr) {
-            setStatus("Please select a token, quantity, and price.", true);
-            return;
-          }
-          const tokenId = parseInt(selectedTokenId, 10);
-          const quantity = parseInt(qtyStr, 10);
-          if (isNaN(tokenId) || tokenId < 0) {
-            setStatus("Invalid token ID.", true);
-            return;
-          }
-          if (isNaN(quantity) || quantity < 1) {
-            setStatus("Quantity must be >= 1", true);
-            return;
-          }
-          let priceWei;
-          try {
-            priceWei = web3.utils.toWei(priceEthStr, "ether");
-          } catch (err) {
-            setStatus("Invalid price: " + err.message, true);
-            return;
-          }
-
-          // Check balance
-          setStatus("Checking balance...");
-          let bal;
-          try {
-            bal = await contract.methods.balanceOf(userAddress, tokenId).call();
-            bal = parseInt(bal, 10);
-            if (bal < quantity) {
-              setStatus("Insufficient token balance for listing.", true);
-              return;
-            }
-          } catch (err) {
-            setStatus("Error checking balance: " + err.message, true);
-            return;
-          }
-
-          // Re-fetch listings
-          await buildListingsFromEvents();
-
-          // Check how many user has already listed for this token ID
-          let sumActive = 0;
-          for (const lId in listingsData) {
-            const listing = listingsData[lId];
-            if (
-              listing.active &&
-              listing.seller.toLowerCase() === userAddress.toLowerCase() &&
-              parseInt(listing.tokenId, 10) === tokenId
-            ) {
-              sumActive += listing.remainingQuantity;
-            }
-          }
-
-          if (sumActive + quantity > bal) {
-            setStatus("You already have an active listing covering all your tokens for that ID.", true);
-            return;
-          }
-
-          // Check isApprovedForAll => if not, request it
-          setStatus("Checking approval...");
-          try {
-            const isApproved = await contract.methods.isApprovedForAll(userAddress, contractAddress).call();
-            if (!isApproved) {
-              setStatus("Requesting approval in MetaMask...");
-              const txObj = contract.methods.setApprovalForAll(contractAddress, true);
-              const gas = await txObj.estimateGas({ from: userAddress });
-              const marketGasPrice = await web3.eth.getGasPrice(); // Fetch the current market gas price
-              await txObj.send({ from: userAddress, gas, gasPrice: marketGasPrice });              
-              setStatus("Approved! Creating listing...");
-            } else {
-              setStatus("Already approved. Creating listing...");
-            }
-          } catch (err) {
-            setStatus("Error requesting approval: " + err.message, true);
-            return;
-          }
-
-          // createListing
-          try {
-            const txObj = contract.methods.createListing(tokenId, quantity, priceWei);
-            const gas = await txObj.estimateGas({ from: userAddress });
-            const marketGasPrice = await web3.eth.getGasPrice();
-            const receipt = await txObj.send({
-                from: userAddress,
-                gas: gas,
-                gasPrice: marketGasPrice
-            });
-            
-            setStatus(`Listing created! Tx: ${receipt.transactionHash}`);
-            await loadAllListings();
-            // Reset selection
-            resetGlbSelection();
-          } catch (err) {
-            setStatus("createListing failed: " + err.message, true);
-          }
-        });
-
-        // =========================
-        // 7. GLB Selection Logic
-        // =========================
-
-        const glbSelectionDiv = document.querySelector(".glb-selection");
-
-        // Function to reset GLB selection
-        function resetGlbSelection() {
-          const glbItems = document.querySelectorAll(".glb-item");
-          glbItems.forEach(item => item.classList.remove("selected"));
-          document.getElementById("selectedTokenId").value = "";
-        }
-
-        // Function to load and display owned tokens as GLBs
-        async function loadOwnedTokens() {
-          if (!isWalletConnected) {
-            glbSelectionDiv.innerHTML += "<div>Please connect your wallet to list your tokens.</div>";
-            setStatus("Wallet not connected. Connect your wallet to list tokens.");
-            return;
-          }
-
-          setStatus("Loading your tokens...");
-          const ownedTokens = [];
-
-          // Assuming serverAnimationMap contains all possible token IDs
-          const allTokenIds = Object.keys(serverAnimationMap).map(id => parseInt(id, 10));
-
-          // Fetch balance for each token ID
-          try {
-            const balancePromises = allTokenIds.map(tokenId => contract.methods.balanceOf(userAddress, tokenId).call());
-            const balances = await Promise.all(balancePromises);
-
-            balances.forEach((balance, index) => {
-              if (parseInt(balance, 10) > 0) {
-                ownedTokens.push(allTokenIds[index]);
-              }
-            });
-          } catch (err) {
-            console.error("Error fetching balances:", err);
-            setStatus("Error fetching token balances.", true);
-            return;
-          }
-
-          if (ownedTokens.length === 0) {
-            glbSelectionDiv.innerHTML += "<div>You do not own any tokens to list.</div>";
-            setStatus("No tokens found.");
-            return;
-          }
-
-          // Display owned tokens as GLB items
-          ownedTokens.forEach(tokenId => {
-            const glbItem = document.createElement("div");
-            glbItem.className = "glb-item";
-            glbItem.dataset.tokenId = tokenId;
-
-            const modelViewer = document.createElement("model-viewer");
-            modelViewer.setAttribute("src", serverAnimationMap[String(tokenId)]);
-            modelViewer.setAttribute("camera-controls", "");
-            modelViewer.setAttribute("auto-rotate", "");
-            modelViewer.setAttribute("shadow-intensity", "1");
-            modelViewer.setAttribute("alt", `Token ID ${tokenId}`);
-            modelViewer.style.width = "100%";
-            modelViewer.style.height = "100%";
-
-            // Load the contributor names dictionary from Django
-            const contributorNamesMap = JSON.parse('{{ contributor_names_dict_json|escapejs }}');
-
-            const contributorName = contributorNamesMap[tokenId] || "Unknown";
-
-            const tokenIdLabel = document.createElement("div");
-            tokenIdLabel.className = "token-id";
-            tokenIdLabel.textContent = `ID: ${tokenId} - ${contributorName}`;
-
-
-            glbItem.appendChild(modelViewer);
-            glbItem.appendChild(tokenIdLabel);
-
-            // Click event to select token and enlarge
-            glbItem.addEventListener("click", () => {
-              // Remove 'selected' class from all items
-              document.querySelectorAll(".glb-item").forEach(item => item.classList.remove("selected"));
-              // Add 'selected' class to clicked item
-              glbItem.classList.add("selected");
-              // Set the selected token ID
-              document.getElementById("selectedTokenId").value = tokenId;
-              setStatus(`Selected Token ID: ${tokenId}`);
-
-              // Enlarge the selected model
-              if (modelViewer.src) {
-                bigModelViewer.setAttribute('src', modelViewer.src);
-                overlay.classList.add('active');
-              }
-            });
-
-            glbSelectionDiv.appendChild(glbItem);
-          });
-
-          setStatus("Tokens loaded. Please select a token to list.");
-        }
-
-        // =========================
-        // 8. Initialize the Application
-        // =========================
-
-        async function initialize() {
-          // Load owned tokens if wallet is connected
-          await loadOwnedTokens();
-
-          // Load all active listings
-          await loadAllListings();
-
-          // Optionally, set up listeners for new events to dynamically update listings
-          // This can be implemented using WebSockets or polling, depending on the provider
-        }
-
-        // Start the application
-        initialize();
-
-        // =========================
-        // 9. Error Handling and Enhancements
-        // =========================
-        // Additional error handling can be implemented here as needed.
-
+        glbSelectionDiv.appendChild(glbItem);
       });
-      
-    </script>
+
+      setStatus("Tokens loaded. Please select one to list.");
+    }
+
+    // =========================
+    // 8. Initialize
+    // =========================
+
+    async function initialize() {
+      // Always load listings from readContract
+      await loadAllListings();
+
+      // Only load tokens if user is connected
+      await loadOwnedTokens();
+    }
+
+    initialize();
+  });
+</script>
+
+
 
 </body>
 </html>

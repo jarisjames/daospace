@@ -748,25 +748,33 @@
     <script>
       document.addEventListener('DOMContentLoaded', async () => {
           console.log("Marketplace script loaded!");
-
+    
           const contractAddress = "0xe06f3fe83e1579f6db6f75d865b3a19f545e2277";
-          const abi = contributorCardsAbi; 
+          const abi = contributorCardsAbi;
           const MAX_SUPPLY = 100; // Static max supply from the contract
-
+    
           // Providers
           const rpcUrl = "https://mainnet.rpc.rarichain.org/http";
           const wsRpcUrl = "wss://mainnet.rpc.rarichain.org/ws";
-
-          // Initialize Web3
+    
+          // ======================
+          // 1. Dedicated Read-Only Web3 for minted counts
+          // ======================
+          const readWeb3 = new Web3(new Web3.providers.HttpProvider(rpcUrl));
+          const readContract = new readWeb3.eth.Contract(abi, contractAddress);
+    
+          // ======================
+          // 2. Normal Web3 for possible wallet usage
+          // ======================
           let web3;
           let contract;
-
+    
           // Check if user has a wallet
           if (typeof window.ethereum !== "undefined") {
               // User has a wallet, use it as the provider
               web3 = new Web3(window.ethereum);
               try {
-                  // Request account access if needed
+                  // Request account access
                   await window.ethereum.request({ method: 'eth_requestAccounts' });
                   contract = new web3.eth.Contract(abi, contractAddress);
                   console.log("Connected using window.ethereum");
@@ -785,21 +793,21 @@
               contract = new web3.eth.Contract(abi, contractAddress);
               console.log("Connected using read-only provider");
           }
-
+    
           // ======================
           // Fetch minted count via getMintedCount (public function)
           // ======================
           async function getMintedCount(tokenId) {
               try {
-                  // Use getMintedCount(tokenId) instead of _tokenData(tokenId).
-                  const minted = await contract.methods.getMintedCount(tokenId).call();
+                  // Always call readContract, so we always read from RARI Chain
+                  const minted = await readContract.methods.getMintedCount(tokenId).call();
                   return minted;
               } catch (err) {
                   console.error(`Error fetching minted count for token ID ${tokenId}:`, err);
                   return null;
               }
           }
-
+    
           // ======================
           // Update displayed remaining supply
           // ======================
@@ -808,7 +816,7 @@
               for (const card of cards) {
                   const tokenId = card.getAttribute("data-token-id");
                   const minted = await getMintedCount(tokenId);
-
+    
                   if (minted !== null) {
                       const remainingSupply = MAX_SUPPLY - minted;
                       card.textContent = `${remainingSupply} remaining`;
@@ -817,9 +825,9 @@
                   }
               }
           }
-
+    
           await updateRemainingSupply();
-
+    
           // ======================
           // LazyMint (Buy) function
           // ======================
@@ -828,55 +836,102 @@
                   alert("Please install a Web3 wallet like MetaMask to perform this action.");
                   return;
               }
-
+    
+              // 1) Ensure we are on RARI Chain or add/switch if not
+              const desiredChainIdHex = "0x52415249"; // 1380012617 in decimal
               try {
+                  // Check if the current chain is already RARI
+                  const currentChainId = await web3.eth.getChainId();
+                  if (currentChainId !== 1380012617) {
+                      // Attempt to switch to RARI Chain
+                      await window.ethereum.request({
+                          method: 'wallet_switchEthereumChain',
+                          params: [{ chainId: desiredChainIdHex }]
+                      });
+                  }
+              } catch (switchError) {
+                  // Error code 4902 means the chain has not been added to MetaMask
+                  if (switchError.code === 4902) {
+                      try {
+                          await window.ethereum.request({
+                              method: 'wallet_addEthereumChain',
+                              params: [{
+                                  chainId: desiredChainIdHex,
+                                  chainName: "RARI Chain Mainnet",
+                                  nativeCurrency: {
+                                      name: "Ethereum",
+                                      symbol: "ETH",
+                                      decimals: 18
+                                  },
+                                  rpcUrls: ["https://mainnet.rpc.rarichain.org/http"],
+                                  blockExplorerUrls: ["https://mainnet.explorer.rarichain.org"]
+                              }]
+                          });
+                          // Now switch to it
+                          await window.ethereum.request({
+                              method: 'wallet_switchEthereumChain',
+                              params: [{ chainId: desiredChainIdHex }]
+                          });
+                      } catch (addError) {
+                          console.error("Failed to add RARI Chain to wallet:", addError);
+                          alert("Failed to add RARI Chain to your wallet. Please add it manually.");
+                          return;
+                      }
+                  } else {
+                      console.error("Failed to switch chain:", switchError);
+                      alert("Failed to switch to RARI Chain. Please switch networks manually.");
+                      return;
+                  }
+              }
+    
+              try {
+                  // 2) Continue with the original buy logic
                   const accounts = await web3.eth.getAccounts();
                   if (accounts.length === 0) {
                       alert("Please connect your wallet to perform this action.");
                       return;
                   }
                   const account = accounts[0];
-
+    
                   const priceWei = web3.utils.toWei(priceEth.toString(), "ether");
                   
-                  //  Correctly fetch metadata URI from the DOM
+                  // Fetch metadata URI from the DOM
                   const cardElement = document.querySelector(`.remaining-supply[data-token-id="${tokenId}"]`);
                   const ipfsMetadataUri = cardElement ? cardElement.getAttribute("data-metadata-uri") : null;
-
+    
                   if (!ipfsMetadataUri) {
                       alert("Error: Metadata URI not found for this token.");
                       return;
                   }
                   
                   const quantity = 1;
-
+    
                   const tx = contract.methods.lazyMint(
                       tokenId,
                       quantity,
                       ipfsMetadataUri,
                       contributorAddress
                   );
-
+    
                   const gasEstimate = await tx.estimateGas({
-                    from: account,
-                    value: priceWei
-                });
-                
-                // Fetch the latest network gas price (which should match the "Market" setting in MetaMask)
-                const marketGasPrice = await web3.eth.getGasPrice();
-                
-                // Send transaction with network-determined "Market" gas price
-                const receipt = await tx.send({
-                    from: account,
-                    value: priceWei,
-                    gas: gasEstimate,
-                    gasPrice: marketGasPrice
-                });
-                
-
+                      from: account,
+                      value: priceWei
+                  });
+                  
+                  // Fetch the latest network gas price
+                  const marketGasPrice = await web3.eth.getGasPrice();
+                  
+                  // Send transaction
+                  const receipt = await tx.send({
+                      from: account,
+                      value: priceWei,
+                      gas: gasEstimate,
+                      gasPrice: marketGasPrice
+                  });
+    
                   alert(`Transaction confirmed! Tx Hash: ${receipt.transactionHash}`);
                   console.log("Transaction Receipt:", receipt);
-
+    
                   // Refresh remaining supply
                   await updateRemainingSupply();
               } catch (err) {
@@ -884,23 +939,23 @@
                   alert(`Transaction failed: ${err.message}`);
               }
           };
-
+    
           // Attach buy logic
           document.querySelectorAll(".buy-button").forEach((button) => {
               button.addEventListener("click", async () => {
                   const tokenId = button.getAttribute("data-token-id");
                   const price = parseFloat(button.getAttribute("data-price"));
                   const contributorAddress = button.getAttribute("data-contributor");
-
+    
                   if (!tokenId || !contributorAddress) {
                       alert("Missing token ID or contributor address.");
                       return;
                   }
-
+    
                   await handleBuy(tokenId, price, contributorAddress);
               });
           });
-
+    
           // ======================
           // Overlay & Slider Zoom
           // ======================
@@ -909,7 +964,7 @@
           const bigModelViewer = document.getElementById("bigModelViewer");
           const zoomSlider = document.getElementById("zoomSlider");
           let currentFov = 50;
-
+    
           // Enlarge model on mini-model click
           document.querySelectorAll(".mini-model").forEach((mini) => {
               mini.addEventListener("click", () => {
@@ -918,13 +973,13 @@
                   overlay.classList.add("active");
               });
           });
-
+    
           // Close overlay
           overlayClose.addEventListener("click", () => {
               overlay.classList.remove("active");
               bigModelViewer.removeAttribute("src");
           });
-
+    
           // Zoom slider logic
           zoomSlider.addEventListener("input", (event) => {
               currentFov = parseInt(event.target.value, 10);
@@ -932,5 +987,7 @@
           });
       });
     </script>
+    
+    
 </body>
 </html>
